@@ -612,8 +612,10 @@ obj/0/s_misc.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
 dobj/0/s_misc.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
 obj/0/s_misc.o: src/wstructs.h src/input.h src/entry.h src/gfx.h src/levels.h
 dobj/0/s_misc.o: src/wstructs.h src/input.h src/entry.h src/gfx.h src/levels.h
-obj/0/s_misc.o: src/things.h src/objid.h src/selectn.h
-dobj/0/s_misc.o: src/things.h src/objid.h src/selectn.h
+obj/0/s_misc.o: src/things.h src/objid.h src/selectn.h src/objects.h
+dobj/0/s_misc.o: src/things.h src/objid.h src/selectn.h src/objects.h
+obj/0/s_misc.o: src/dialog.h
+dobj/0/s_misc.o: src/dialog.h
 obj/0/s_prop.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 dobj/0/s_prop.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 obj/0/s_prop.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
@@ -642,8 +644,8 @@ obj/0/s_split.o: src/wstructs.h src/input.h src/dialog.h src/levels.h
 dobj/0/s_split.o: src/wstructs.h src/input.h src/dialog.h src/levels.h
 obj/0/s_split.o: src/things.h src/objects.h src/objid.h src/s_linedefs.h
 dobj/0/s_split.o: src/things.h src/objects.h src/objid.h src/s_linedefs.h
-obj/0/s_split.o: src/selectn.h src/x_hover.h
-dobj/0/s_split.o: src/selectn.h src/x_hover.h
+obj/0/s_split.o: src/selectn.h src/x_hover.h src/entry.h
+dobj/0/s_split.o: src/selectn.h src/x_hover.h src/entry.h
 obj/0/s_swapf.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 dobj/0/s_swapf.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 obj/0/s_swapf.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
@@ -734,6 +736,34 @@ obj/0/swapmem.o: src/wstructs.h src/input.h src/levels.h src/things.h
 dobj/0/swapmem.o: src/wstructs.h src/input.h src/levels.h src/things.h
 obj/0/swapmem.o: src/objid.h
 dobj/0/swapmem.o: src/objid.h
+obj/0/r_render.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
+dobj/0/r_render.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
+obj/0/r_render.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
+dobj/0/r_render.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
+obj/0/r_render.o: src/wstructs.h src/input.h src/levels.h src/things.h
+dobj/0/r_render.o: src/wstructs.h src/input.h src/levels.h src/things.h
+obj/0/r_render.o: src/gfx.h src/img.h src/sticker.h src/gamesky.h src/wadname.h
+dobj/0/r_render.o: src/gfx.h src/img.h src/sticker.h src/gamesky.h src/wadname.h
+obj/0/r_render.o: src/wadres.h src/spritdir.h src/lumpdir.h src/objid.h
+dobj/0/r_render.o: src/wadres.h src/spritdir.h src/lumpdir.h src/objid.h
+obj/0/r_render.o: src/objects.h src/pic2img.h src/rgb.h src/gcolour2.h
+dobj/0/r_render.o: src/objects.h src/pic2img.h src/rgb.h src/gcolour2.h
+obj/0/r_render.o: src/colour.h src/r_render.h src/r_images.h
+dobj/0/r_render.o: src/colour.h src/r_render.h src/r_images.h
+obj/0/r_images.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
+dobj/0/r_images.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
+obj/0/r_images.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
+dobj/0/r_images.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
+obj/0/r_images.o: src/wstructs.h src/input.h src/dialog.h src/game.h src/rgb.h
+dobj/0/r_images.o: src/wstructs.h src/input.h src/dialog.h src/game.h src/rgb.h
+obj/0/r_images.o: src/gfx.h src/levels.h src/things.h src/lists.h src/img.h
+dobj/0/r_images.o: src/gfx.h src/levels.h src/things.h src/lists.h src/img.h
+obj/0/r_images.o: src/patchdir.h src/pic2img.h src/sticker.h src/flats.h
+dobj/0/r_images.o: src/patchdir.h src/pic2img.h src/sticker.h src/flats.h
+obj/0/r_images.o: src/textures.h src/wadfile.h src/wads.h src/wadres.h
+dobj/0/r_images.o: src/textures.h src/wadfile.h src/wads.h src/wadres.h
+obj/0/r_images.o: src/spritdir.h src/lumpdir.h src/r_images.h
+dobj/0/r_images.o: src/spritdir.h src/lumpdir.h src/r_images.h
 obj/0/t_centre.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 dobj/0/t_centre.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 obj/0/t_centre.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
@@ -756,10 +786,10 @@ obj/0/t_prop.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
 dobj/0/t_prop.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h
 obj/0/t_prop.o: src/wstructs.h src/input.h src/entry.h src/game.h src/rgb.h
 dobj/0/t_prop.o: src/wstructs.h src/input.h src/entry.h src/game.h src/rgb.h
-obj/0/t_prop.o: src/gfx.h src/levels.h src/things.h src/oldmenus.h
-dobj/0/t_prop.o: src/gfx.h src/levels.h src/things.h src/oldmenus.h
-obj/0/t_prop.o: src/selectn.h
-dobj/0/t_prop.o: src/selectn.h
+obj/0/t_prop.o: src/gfx.h src/levels.h src/things.h src/oldmenus.h src/objid.h
+dobj/0/t_prop.o: src/gfx.h src/levels.h src/things.h src/oldmenus.h src/objid.h
+obj/0/t_prop.o: src/objects.h src/selectn.h
+dobj/0/t_prop.o: src/objects.h src/selectn.h
 obj/0/t_spin.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 dobj/0/t_spin.o: src/yadex.h src/config.h atclib/atclib.h src/bitvec.h
 obj/0/t_spin.o: src/yerror.h src/ymemory.h src/aym.h src/windim.h

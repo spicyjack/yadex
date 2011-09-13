@@ -105,13 +105,13 @@ const char *Menu_data_ldt::operator[] (size_t n) const
  *	Prototypes of private functions
  */
 static char *GetTaggedLineDefFlag (int linedefnum, int flagndx);
-static int InputLinedefType (int x0, int y0, int *number);
+int InputLinedefType (int x0, int y0, int *number);
 static const char *PrintLdtgroup (void *ptr);
 
 
 void LinedefProperties (int x0, int y0, SelPtr obj)
 {
-  char  *menustr[8];
+  char  *menustr[12];
   char   texname[WAD_TEX_NAME + 1];
   int    n, val;
   SelPtr cur, sdlist;
@@ -132,9 +132,9 @@ void LinedefProperties (int x0, int y0, SelPtr obj)
   switch (val)
   {
     case 1:
-      for (n = 0; n < 8; n++)
+      for (n = 0; n < 12; n++)
 	menustr[n] = (char *) GetMemory (60);
-      sprintf (menustr[7], "Edit linedef #%d", obj->objnum);
+      sprintf (menustr[11], "Edit linedef #%d", obj->objnum);
       sprintf (menustr[0], "Change flags            (Current: %d)",
 	LineDefs[obj->objnum].flags);
       sprintf (menustr[1], "Change type             (Current: %d)",
@@ -149,7 +149,16 @@ void LinedefProperties (int x0, int y0, SelPtr obj)
 	LineDefs[obj->objnum].sidedef1);
       sprintf (menustr[6], "Change 2nd sidedef ref. (Current: #%d)",
 	LineDefs[obj->objnum].sidedef2);
-      val = vDisplayMenu (x0 + 42, subwin_y0, menustr[7],
+      sprintf (menustr[7], "Change special arg2     (Current: %d)",
+    LineDefs[obj->objnum].arg2);
+      sprintf (menustr[8], "Change special arg3     (Current: %d)",
+    LineDefs[obj->objnum].arg3);
+      sprintf (menustr[9], "Change special arg4     (Current: %d)",
+    LineDefs[obj->objnum].arg4);
+      sprintf (menustr[10], "Change special arg5     (Current: %d)",
+    LineDefs[obj->objnum].arg5);
+      if (yg_level_format == YGLF_HEXEN)
+         val = vDisplayMenu (x0 + 42, subwin_y0, menustr[11],
 	menustr[0], YK_, 0,
 	menustr[1], YK_, 0,
 	menustr[2], YK_, 0,
@@ -157,8 +166,22 @@ void LinedefProperties (int x0, int y0, SelPtr obj)
 	menustr[4], YK_, 0,
 	menustr[5], YK_, 0,
 	menustr[6], YK_, 0,
-	NULL);
-      for (n = 0; n < 8; n++)
+   menustr[7], YK_, 0,
+   menustr[8], YK_, 0,
+   menustr[9], YK_, 0,
+   menustr[10], YK_, 0,
+    NULL);
+     else
+         val = vDisplayMenu (x0 + 42, subwin_y0, menustr[11],
+   menustr[0], YK_, 0,
+   menustr[1], YK_, 0,
+   menustr[2], YK_, 0,
+   menustr[3], YK_, 0,
+   menustr[4], YK_, 0,
+   menustr[5], YK_, 0,
+   menustr[6], YK_, 0,
+   NULL);
+      for (n = 0; n < 12; n++)
 	FreeMemory (menustr[n]);
       subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
       switch (val)
@@ -267,9 +290,51 @@ void LinedefProperties (int x0, int y0, SelPtr obj)
 	      LineDefs[cur->objnum].sidedef2 = val;
 	    MadeChanges = 1;
 	    MadeMapChanges = 1;
+     }
+     break;
+
+   case 8:
+     val = InputIntegerValue (x0 + 84, subsubwin_y0,
+       0, 255, LineDefs[obj->objnum].arg2);
+     if (val != IIV_CANCEL)  // Not [esc]
+     {
+       for (cur = obj; cur; cur = cur->next)
+         LineDefs[cur->objnum].arg2 = val;
+       MadeChanges = 1;
+     }
+     break;
+   case 9:
+     val = InputIntegerValue (x0 + 84, subsubwin_y0,
+       0, 255, LineDefs[obj->objnum].arg3);
+     if (val != IIV_CANCEL)  // Not [esc]
+     {
+       for (cur = obj; cur; cur = cur->next)
+         LineDefs[cur->objnum].arg3 = val;
+       MadeChanges = 1;
+     }
+     break;
+
+   case 10:
+     val = InputIntegerValue (x0 + 84, subsubwin_y0,
+       0, 255, LineDefs[obj->objnum].arg4);
+     if (val != IIV_CANCEL)  // Not [esc]
+     {
+       for (cur = obj; cur; cur = cur->next)
+         LineDefs[cur->objnum].arg4 = val;
+       MadeChanges = 1;
+     }
+     break;
+   case 11:
+     val = InputIntegerValue (x0 + 84, subsubwin_y0,
+       0, 255, LineDefs[obj->objnum].arg5);
+     if (val != IIV_CANCEL)  // Not [esc]
+     {
+       for (cur = obj; cur; cur = cur->next)
+         LineDefs[cur->objnum].arg5 = val;
+       MadeChanges = 1;
 	  }
 	  break;
-     }
+     } // switch (val)
      break;
 
     // Edit or add the first sidedef
@@ -475,7 +540,7 @@ static char *GetTaggedLineDefFlag (int linedefnum, int flagndx)
  *	Let the user select a linedef type number and return it.
  *	Returns 0 if OK, <>0 if cancelled
  */
-static int InputLinedefType (int x0, int y0, int *number)
+int InputLinedefType (int x0, int y0, int *number)
 {
   int         r;
   int         ldtgno = 0;
@@ -545,5 +610,39 @@ static const char *PrintLdtgroup (void *ptr)
   if (! ptr)
     return "PrintLdtgroup: (null)";
   return ((ldtgroup_t *)ptr)->desc;
+}
+
+/*
+ *   TransferLinedefProperties
+ *
+ *   Note: right now nothing is done about sidedefs.  Being able to
+ *   (intelligently) transfer sidedef properties from source line to
+ *   destination linedefs could be a useful feature -- though it is
+ *   unclear the best way to do it.  OTOH not touching sidedefs might
+ *   be useful too.
+ *
+ *   -AJA- 2001-05-27
+ */
+#define LINEDEF_FLAG_KEEP  (1 + 4)
+
+void TransferLinedefProperties (int src_linedef, SelPtr linedefs)
+{
+   SelPtr cur;
+   wad_ldflags_t src_flags = LineDefs[src_linedef].flags & ~LINEDEF_FLAG_KEEP;
+
+   for (cur=linedefs; cur; cur=cur->next)
+   {
+      if (! is_obj(cur->objnum))
+         continue;
+
+      // don't transfer certain flags
+      LineDefs[cur->objnum].flags &= LINEDEF_FLAG_KEEP;
+      LineDefs[cur->objnum].flags |= src_flags;
+
+      LineDefs[cur->objnum].type = LineDefs[src_linedef].type;
+      LineDefs[cur->objnum].tag  = LineDefs[src_linedef].tag;
+
+      MadeChanges = 1;
+   }
 }
 

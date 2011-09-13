@@ -36,17 +36,18 @@ Place, Suite 330, Boston, MA 02111-1307, USA.
 #include "gfx.h"
 #include "levels.h"
 #include "oldmenus.h"
+#include "objid.h"
+#include "objects.h"
 #include "selectn.h"
 #include "things.h"
-
 
 /*
  *	Private functions prototypes
  */
-static int InputThingType (int x0, int y0, int *number);
 static const char *PrintThinggroup (void *ptr);
 static const char *PrintThingdef (void *ptr);
-
+int InputThingType (int x0, int y0, int *number);
+int InputLinedefType (int x0, int y0, int *number);
 
 /*
  *	ThingProperties
@@ -60,9 +61,9 @@ int    n, val;
 SelPtr cur;
 int    subwin_y0;
 
-for (n = 0; n < 6; n++)
+for (n = 0; n < 14; n++)
    menustr[n] = (char *) GetMemory (60);
-sprintf (menustr[5], "Edit thing #%d", obj->objnum);
+sprintf (menustr[13], "Edit thing #%d", obj->objnum);
 sprintf (menustr[0], "Change type          (Current: %s)",
          get_thing_name (Things[obj->objnum].type));
 sprintf (menustr[1], "Change angle         (Current: %s)",
@@ -73,14 +74,47 @@ sprintf (menustr[3], "Change X position    (Current: %d)",
          Things[obj->objnum].xpos);
 sprintf (menustr[4], "Change Y position    (Current: %d)",
          Things[obj->objnum].ypos);
-val = vDisplayMenu (x0, y0, menustr[5],
+sprintf (menustr[5], "Change Z position    (Current: %d)",
+         Things[obj->objnum].height);
+sprintf (menustr[6], "Change TID           (Current: %d)",
+         Things[obj->objnum].tid);
+sprintf (menustr[7], "Change special       (Current: %d)",
+         Things[obj->objnum].special);
+sprintf (menustr[8], "Change arg1          (Current: %d)",
+         Things[obj->objnum].arg1);
+sprintf (menustr[9], "Change arg2          (Current: %d)",
+         Things[obj->objnum].arg2);
+sprintf (menustr[10], "Change arg3          (Current: %d)",
+         Things[obj->objnum].arg3);
+sprintf (menustr[11], "Change arg4          (Current: %d)",
+         Things[obj->objnum].arg4);
+sprintf (menustr[12], "Change arg5          (Current: %d)",
+         Things[obj->objnum].arg5);
+if (yg_level_format == YGLF_HEXEN)     // Hexen mode
+val = vDisplayMenu (x0, y0, menustr[13],
+   menustr[0], YK_, 0,
+   menustr[1], YK_, 0,
+   menustr[2], YK_, 0,
+   menustr[3], YK_, 0,
+   menustr[4], YK_, 0,
+   menustr[5], YK_, 0,
+   menustr[6], YK_, 0,
+   menustr[7], YK_, 0,
+   menustr[8], YK_, 0,
+   menustr[9], YK_, 0,
+   menustr[10], YK_, 0,
+   menustr[11], YK_, 0,
+   menustr[12], YK_, 0,
+   NULL);
+else
+val = vDisplayMenu (x0, y0, menustr[13],
    menustr[0], YK_, 0,
    menustr[1], YK_, 0,
    menustr[2], YK_, 0,
    menustr[3], YK_, 0,
    menustr[4], YK_, 0,
    NULL);
-for (n = 0; n < 6; n++)
+for (n = 0; n < 14; n++)
    FreeMemory (menustr[n]);
 subwin_y0 = y0 + BOX_BORDER + (2 + val) * FONTH;
 switch (val)
@@ -238,6 +272,90 @@ switch (val)
 	n = val - Things[obj->objnum].ypos;
 	for (cur = obj; cur; cur = cur->next)
 	   Things[cur->objnum].ypos += n;
+   MadeChanges = 1;
+        }
+     break;
+
+  case 6:
+     val = InputIntegerValue (x0 + 42, subwin_y0, -32768, 32767,
+                              Things[obj->objnum].height);
+     if (val != IIV_CANCEL)
+        {
+   n = val - Things[obj->objnum].height;
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].height += n;
+   MadeChanges = 1;
+        }
+     break;
+  case 7:
+     val = InputIntegerValue (x0 + 42, subwin_y0, -32768, 32767,
+                              Things[obj->objnum].tid);
+     if (val != IIV_CANCEL)
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].tid = val;
+   MadeChanges = 1;
+        }
+     break;
+
+  case 8:
+     if (! InputLinedefType (x0 + 42, subwin_y0, &val))
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].special = val;
+   MadeChanges = 1;
+        }
+     break;
+
+  case 9:
+     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
+                              Things[obj->objnum].arg1);
+     if (val != IIV_CANCEL)
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].arg1 = val;
+   MadeChanges = 1;
+        }
+     break;
+
+  case 10:
+     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
+                              Things[obj->objnum].arg2);
+     if (val != IIV_CANCEL)
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].arg2 = val;
+   MadeChanges = 1;
+        }
+     break;
+  case 11:
+     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
+                              Things[obj->objnum].arg3);
+     if (val != IIV_CANCEL)
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].arg3 = val;
+   MadeChanges = 1;
+        }
+     break;
+
+  case 12:
+     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
+                              Things[obj->objnum].arg4);
+     if (val != IIV_CANCEL)
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].arg4 = val;
+   MadeChanges = 1;
+        }
+     break;
+  case 13:
+     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
+                              Things[obj->objnum].arg5);
+     if (val != IIV_CANCEL)
+        {
+   for (cur = obj; cur; cur = cur->next)
+      Things[cur->objnum].arg5 = val;
 	MadeChanges = 1;
         }
      break;
@@ -250,7 +368,7 @@ switch (val)
  *	Let the user select a thing number and return it.
  *	Returns 0 if OK, <>0 if cancelled
  */
-static int InputThingType (int x0, int y0, int *number)
+int InputThingType (int x0, int y0, int *number)
 {
 int         r;
 int         tgno = 0;
@@ -328,6 +446,32 @@ static const char *PrintThingdef (void *ptr)
 if (ptr == NULL)
    return "PrintThingdef: (null)";
 return (*((thingdef_t **)ptr))->desc;
+}
+
+
+/*
+ *   TransferThingProperties
+ *
+ *   -AJA- 2001-05-27
+ */
+void TransferThingProperties (int src_thing, SelPtr things)
+{
+   SelPtr cur;
+
+   for (cur=things; cur; cur=cur->next)
+   {
+      if (! is_obj(cur->objnum))
+         continue;
+
+      Things[cur->objnum].angle = Things[src_thing].angle;
+      Things[cur->objnum].type  = Things[src_thing].type;
+      Things[cur->objnum].when  = Things[src_thing].when;
+
+      MadeChanges = 1;
+
+      things_types++;
+      things_angles++;
+   }
 }
 
 

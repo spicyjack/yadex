@@ -24,6 +24,9 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 59 Temple
 Place, Suite 330, Boston, MA 02111-1307, USA.
+
+patched using a patch from redhat, 18Aug2009, bmanning (elspicyjack at gmail)
+https://bugzilla.redhat.com/attachment.cgi?id=126273
 */
 
 
@@ -52,6 +55,7 @@ class Wad_list_priv
 
 Wad_list_priv::Wad_list_priv ()
 {
+  iter = list.begin ();
   rewound = true;
 }
 
@@ -80,6 +84,7 @@ Wad_list::~Wad_list ()
  */
 void Wad_list::rewind () const
 {
+  priv->iter = priv->list.begin ();
   priv->rewound = true;
 }
 
@@ -98,10 +103,7 @@ void Wad_list::rewind () const
 bool Wad_list::get (Wad_file *& wf)
 {
   if (priv->rewound)
-  {
-    priv->iter = priv->list.begin ();
     priv->rewound = false;
-  }
   else
     ++priv->iter;
 
@@ -119,10 +121,7 @@ bool Wad_list::get (Wad_file *& wf)
 bool Wad_list::get (const Wad_file *& wf) const
 {
   if (priv->rewound)
-  {
-    priv->iter = priv->list.begin ();
     priv->rewound = false;
-  }
   else
     ++priv->iter;
 
@@ -157,26 +156,12 @@ void Wad_list::insert (Wad_file *wf)
  */
 void Wad_list::del ()
 {
-  list_t::iterator i;
-
-  if (priv->rewound)
-  {
-    i = priv->list.begin ();
-  }
-  else
-  {
-    i = priv->iter;
-  }
-  if (i == priv->list.end ())
+  if (priv->iter == priv->list.end ())
   {
     nf_bug ("Wad_list::del: attempt to delete last item");
     return;
   }
-  priv->iter = priv->list.erase (i);
+  priv->iter = priv->list.erase (priv->iter);
   if (priv->iter == priv->list.begin ())
-  {
-    priv->iter = 0;			// Catch bugs
     priv->rewound = true;
-  }
 }
-
