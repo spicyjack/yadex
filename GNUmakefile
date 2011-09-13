@@ -383,7 +383,7 @@ yadex: $(OBJDIR)/yadex
 
 $(OBJDIR)/yadex: $(OBJ_CONFIG) $(OBJ_YADEX) $(OBJ_ATCLIB) $(MAKEFILE)
 	@echo "** Linking Yadex"
-	$(CXX) $(OBJ_CONFIG) $(OBJ_YADEX) $(OBJ_ATCLIB) -o $@		\
+	$(CXX) -m32 $(OBJ_CONFIG) $(OBJ_YADEX) $(OBJ_ATCLIB) -o $@		\
 	  -L$(X11LIBDIR) -lX11 -lm -lc $(LDFLAGS)
 
 .PHONY: test
@@ -733,18 +733,18 @@ src/config.h: $(OBJDIR)/config.h
 	cp -p $< $@
 
 $(OBJDIR)/%.o: src/%.cc
-	$(CXX) -c -Iatclib -Iboost -I$(X11INCLUDEDIR) $(CXXFLAGS) $< -o $@
+	$(CXX) -m32 -c -Iatclib -Iboost -I$(X11INCLUDEDIR) $(CXXFLAGS) $< -o $@
 
 $(DOBJDIR)/%.o: src/%.cc
-	$(CXX) -c -Iatclib -Iboost -I$(X11INCLUDEDIR) $(DCXXFLAGS) $< -o $@
+	$(CXX) -m32 -c -Iatclib -Iboost -I$(X11INCLUDEDIR) $(DCXXFLAGS) $< -o $@
 
 # To compile the modules of Atclib
 # (normal and debugging versions)
 $(OBJDIR_ATCLIB)/%.o: atclib/%.c $(HEADERS_ATCLIB)
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -m32 -c $(CFLAGS) $< -o $@
 
 $(DOBJDIR_ATCLIB)/%.o: atclib/%.c $(HEADERS_ATCLIB)
-	$(CC) -c $(DCFLAGS) $< -o $@
+	$(CC) -m32 -c $(DCFLAGS) $< -o $@
 
 # To see the generated assembly code
 # for the modules of Yadex
