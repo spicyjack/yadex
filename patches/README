@@ -1,3 +1,9 @@
+Patches added from the Yadex Patch Page (http://glbsp.sourceforge.net/yadex/).
+Old gcc 2.7 patch was removed, no current Linux diѕtribution is shipping with
+GCC 2.7.
+
+-- 28Sep2011 Brian Manning (spicyjack)
+
 These are patches for Yadex that have for some reason not made
 it in the stable version. Some were written by me, some by
 others.
@@ -24,3 +30,4 @@ Please note :
   work with most diffs.
 
 -- AYM 2001-07-01
+

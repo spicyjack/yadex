@@ -1,0 +1,16 @@
+diff -u -r yadex-1.7.0/atclib/al_adigits.c yadex-1.7.0-aja/atclib/al_adigits.c
+--- yadex-1.7.0/atclib/al_adigits.c	1999-08-02 00:52:00.000000000 +1000
++++ yadex-1.7.0-aja/atclib/al_adigits.c	1970-01-01 10:00:00.000000000 +1000
+@@ -29,5 +29,11 @@
+ #include "atclib.h"
+ 
+ 
+-const char al_adigits[36] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
++const char al_adigits[36] =
++{
++'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
++'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
++'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
++'U', 'V', 'W', 'X', 'Y', 'Z'
++};
+ 

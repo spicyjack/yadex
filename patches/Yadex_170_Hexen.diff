@@ -1,0 +1,1223 @@
+diff -N -p -r -u yadex-1.7.0-orig/src/editloop.cc yadex-1.7.0/src/editloop.cc
+--- yadex-1.7.0-orig/src/editloop.cc	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/editloop.cc	Wed Oct 20 00:54:28 2004
+@@ -43,6 +43,7 @@ Place, Suite 330, Boston, MA 02111-1307,
+ #include "entry.h"
+ #include "entry2.h"
+ #include "events.h"
++#include "game.h"
+ #include "gfx.h"
+ #include "gfx2.h"	// show_character_set() show_pcolours()
+ #include "gfx3.h"
+@@ -94,6 +95,7 @@ static int menubar_out_y1;	/* FIXME */
+ 
+ /* prototypes of private functions */
+ static int SortLevels (const void *item1, const void *item2);
++static char *GetBehaviorFileName (const char *levelname);
+ 
+ /*
+  *	SelectLevel
+@@ -303,15 +305,28 @@ e.mb_menu[MBM_FILE] = new Menu (NULL,
+    "~Quit",       'q',   0,
+    NULL);
+ 
+-e.mb_menu[MBM_EDIT] = new Menu (NULL,
+-   "~Copy object(s)",          'o',    0,
+-   "~Add object",              YK_INS, 0,
+-   "~Delete object(s)",        YK_DEL, 0,
+-   "~Exchange object numbers", 24,     0,
+-   "~Preferences...",          YK_F5,  0,
+-   "~Snap to grid",            'y',    MIF_VTICK, &e.grid_snap,		     0,
+-   "~Lock grid step",          'z',    MIF_VTICK, &e.grid_step_locked,	     0,
+-   NULL);
++
++if (yg_level_format == YGLF_HEXEN)
++   e.mb_menu[MBM_EDIT] = new Menu (NULL,
++     "~Copy object(s)",          'o',    0,
++      "~Add object",              YK_INS, 0,
++      "~Delete object(s)",        YK_DEL, 0,
++      "~Exchange object numbers", 24,     0,
++      "~Preferences...",          YK_F5,  0,
++      "~Snap to grid",            'y',    MIF_VTICK, &e.grid_snap,		     0,
++      "~Lock grid step",          'z',    MIF_VTICK, &e.grid_step_locked,	     0,
++      "Load ~BEHAVIOR lump",      'b',    0,
++      NULL);
++else
++   e.mb_menu[MBM_EDIT] = new Menu (NULL,
++      "~Copy object(s)",          'o',    0,
++      "~Add object",              YK_INS, 0,
++      "~Delete object(s)",        YK_DEL, 0,
++      "~Exchange object numbers", 24,     0,
++      "~Preferences...",          YK_F5,  0,
++      "~Snap to grid",            'y',    MIF_VTICK, &e.grid_snap,		     0,
++      "~Lock grid step",          'z',    MIF_VTICK, &e.grid_step_locked,	     0,
++      NULL);
+ 
+ // If you change the order of modes here, don't forget
+ // to modify the <modes> array.
+@@ -2357,6 +2372,30 @@ cancel_save_as:
+ 	 RedrawMap = 1;
+ 	 }
+ 
++      // Load BEHAVIOR lump (JL)
++      else if (is.key == 'b')
++         {
++         char *acsfile;
++         const char *acsname;
++         if (levelname)
++            acsname = levelname;
++         else
++            acsname = "behavior";
++         acsfile = GetBehaviorFileName (acsname);
++         FILE* f = fopen(acsfile, "rb");
++         if (f)
++            {
++            FreeFarMemory(Behavior);
++            fseek(f, 0, SEEK_END);
++            BehaviorSize = ftell(f);
++            Behavior = (u8*)GetFarMemory(BehaviorSize);
++            fseek(f, 0, SEEK_SET);
++            fread(Behavior, BehaviorSize, 1, f);
++            fclose(f);
++            }
++         RedrawMap = 1;
++      }
++
+       /* user likes music */
+       else if (is.key)
+ 	 {
+@@ -2504,6 +2543,34 @@ static int zoom_fit (edit_t& e)
+     return 1;
+   CenterMapAroundCoords ((MapMinX + MapMaxX) / 2, (MapMinY + MapMaxY) / 2);
+   return 0;
++}
++
++/*
++   get the name of the BEHAVIOR lump file (returns NULL on Esc)
++*/
++
++static char *GetBehaviorFileName (const char *levelname)
++{
++#define BUFSZ 79
++  char *outfile = (char *) GetMemory (BUFSZ + 1);
++
++  /* get the file name */
++  // If no name, find a default one
++  if (! levelname)
++  {
++    levelname = "behavior";
++  }
++
++  al_scpslower (outfile, levelname, BUFSZ);
++  al_saps (outfile, ".o", BUFSZ);
++  InputFileName (-1, -1, "Name of the BEHAVIOR script file:", BUFSZ, outfile);
++  /* escape */
++  if (outfile[0] == '\0')
++  {
++    FreeMemory (outfile);
++    return 0;
++  }
++  return outfile;
+ }
+ 
+ 
+diff -N -p -r -u yadex-1.7.0-orig/src/l_prop.cc yadex-1.7.0/src/l_prop.cc
+--- yadex-1.7.0-orig/src/l_prop.cc	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/l_prop.cc	Tue Oct 19 23:16:01 2004
+@@ -111,7 +111,7 @@ static const char *PrintLdtgroup (void *
+ 
+ void LinedefProperties (int x0, int y0, SelPtr obj)
+ {
+-  char  *menustr[8];
++  char  *menustr[12];
+   char   texname[WAD_TEX_NAME + 1];
+   int    n, val;
+   SelPtr cur, sdlist;
+@@ -132,9 +132,9 @@ void LinedefProperties (int x0, int y0, 
+   switch (val)
+   {
+     case 1:
+-      for (n = 0; n < 8; n++)
++      for (n = 0; n < 12; n++)
+ 	menustr[n] = (char *) GetMemory (60);
+-      sprintf (menustr[7], "Edit linedef #%d", obj->objnum);
++      sprintf (menustr[11], "Edit linedef #%d", obj->objnum);
+       sprintf (menustr[0], "Change flags            (Current: %d)",
+ 	LineDefs[obj->objnum].flags);
+       sprintf (menustr[1], "Change type             (Current: %d)",
+@@ -149,7 +149,16 @@ void LinedefProperties (int x0, int y0, 
+ 	LineDefs[obj->objnum].sidedef1);
+       sprintf (menustr[6], "Change 2nd sidedef ref. (Current: #%d)",
+ 	LineDefs[obj->objnum].sidedef2);
+-      val = vDisplayMenu (x0 + 42, subwin_y0, menustr[7],
++      sprintf (menustr[7], "Change special arg2     (Current: %d)",
++	LineDefs[obj->objnum].arg2);
++      sprintf (menustr[8], "Change special arg3     (Current: %d)",
++	LineDefs[obj->objnum].arg3);
++      sprintf (menustr[9], "Change special arg4     (Current: %d)",
++	LineDefs[obj->objnum].arg4);
++      sprintf (menustr[10], "Change special arg5     (Current: %d)",
++	LineDefs[obj->objnum].arg5);
++      if (yg_level_format == YGLF_HEXEN)
++         val = vDisplayMenu (x0 + 42, subwin_y0, menustr[11],
+ 	menustr[0], YK_, 0,
+ 	menustr[1], YK_, 0,
+ 	menustr[2], YK_, 0,
+@@ -157,8 +166,22 @@ void LinedefProperties (int x0, int y0, 
+ 	menustr[4], YK_, 0,
+ 	menustr[5], YK_, 0,
+ 	menustr[6], YK_, 0,
++	menustr[7], YK_, 0,
++	menustr[8], YK_, 0,
++	menustr[9], YK_, 0,
++	menustr[10], YK_, 0,
+ 	NULL);
+-      for (n = 0; n < 8; n++)
++	  else
++         val = vDisplayMenu (x0 + 42, subwin_y0, menustr[11],
++	menustr[0], YK_, 0,
++	menustr[1], YK_, 0,
++	menustr[2], YK_, 0,
++	menustr[3], YK_, 0,
++	menustr[4], YK_, 0,
++	menustr[5], YK_, 0,
++	menustr[6], YK_, 0,
++	NULL);
++      for (n = 0; n < 12; n++)
+ 	FreeMemory (menustr[n]);
+       subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
+       switch (val)
+@@ -267,6 +290,50 @@ void LinedefProperties (int x0, int y0, 
+ 	      LineDefs[cur->objnum].sidedef2 = val;
+ 	    MadeChanges = 1;
+ 	    MadeMapChanges = 1;
++	  }
++	  break;
++
++	case 8:
++	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
++	    0, 255, LineDefs[obj->objnum].arg2);
++	  if (val != IIV_CANCEL)  // Not [esc]
++	  {
++	    for (cur = obj; cur; cur = cur->next)
++	      LineDefs[cur->objnum].arg2 = val;
++	    MadeChanges = 1;
++	  }
++	  break;
++
++	case 9:
++	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
++	    0, 255, LineDefs[obj->objnum].arg3);
++	  if (val != IIV_CANCEL)  // Not [esc]
++	  {
++	    for (cur = obj; cur; cur = cur->next)
++	      LineDefs[cur->objnum].arg3 = val;
++	    MadeChanges = 1;
++	  }
++	  break;
++
++	case 10:
++	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
++	    0, 255, LineDefs[obj->objnum].arg4);
++	  if (val != IIV_CANCEL)  // Not [esc]
++	  {
++	    for (cur = obj; cur; cur = cur->next)
++	      LineDefs[cur->objnum].arg4 = val;
++	    MadeChanges = 1;
++	  }
++	  break;
++
++	case 11:
++	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
++	    0, 255, LineDefs[obj->objnum].arg5);
++	  if (val != IIV_CANCEL)  // Not [esc]
++	  {
++	    for (cur = obj; cur; cur = cur->next)
++	      LineDefs[cur->objnum].arg5 = val;
++	    MadeChanges = 1;
+ 	  }
+ 	  break;
+      }
+diff -N -p -r -u yadex-1.7.0-orig/src/levels.cc yadex-1.7.0/src/levels.cc
+--- yadex-1.7.0-orig/src/levels.cc	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/levels.cc	Wed Oct 20 00:04:05 2004
+@@ -58,6 +58,8 @@ int NumVertices;		/* number of vertexes 
+ VPtr Vertices;			/* vertex data */
+ int NumSectors;			/* number of sectors */
+ SPtr Sectors;			/* sectors data */
++u8* Behavior;
++int BehaviorSize;
+ 
+ // FIXME should be somewhere else
+ int NumWTexture;		/* number of wall textures */
+@@ -95,6 +97,10 @@ y_file_name_t Level_file_name_saved;  /*
+ 				   the Level has never been saved yet,
+ 				   an empty string. */
+ 
++static u8 DefaultBehavior[16] = {
++	'A', 'C', 'S', 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
++};
++
+ void EmptyLevelData (const char *levelname)
+ {
+ Things = 0;
+@@ -109,6 +115,12 @@ Sectors = 0;
+ NumSectors = 0;
+ Vertices = 0;
+ NumVertices = 0;
++if (yg_level_format == YGLF_HEXEN)
++   {
++      BehaviorSize = sizeof(DefaultBehavior);
++      Behavior = (u8*) GetFarMemory ((unsigned long) BehaviorSize );
++      memcpy(Behavior, DefaultBehavior, BehaviorSize);
++   }
+ }
+ 
+ 
+@@ -199,7 +211,7 @@ else
+    {
+    offset = dir->dir.start;
+    length = dir->dir.size;
+-   if (MainWad == Iwad4)  // Hexen mode
++   if (yg_level_format == YGLF_HEXEN)  // Hexen mode
+       {
+       NumThings = (int) (length / WAD_HEXEN_THING_BYTES);
+       if ((i32) (NumThings * WAD_HEXEN_THING_BYTES) != length)
+@@ -234,18 +246,23 @@ if (NumThings > 0)
+       rc = 1;
+       goto byebye;
+       }
+-   if (MainWad == Iwad4)		// Hexen mode
++   if (yg_level_format == YGLF_HEXEN)		// Hexen mode
+       for (long n = 0; n < NumThings; n++)
+ 	 {
+          u8 dummy2[6];
+-	 wf->read_i16   ();					// Tid
++	 wf->read_i16   (&Things[n].tid  );
+ 	 wf->read_i16   (&Things[n].xpos );
+ 	 wf->read_i16   (&Things[n].ypos );
+-	 wf->read_i16   ();					// Height
++	 wf->read_i16   (&Things[n].height);
+ 	 wf->read_i16   (&Things[n].angle);
+ 	 wf->read_i16   (&Things[n].type );
+ 	 wf->read_i16   (&Things[n].when );
+-         wf->read_bytes (dummy2, sizeof dummy2);
++	 wf->read_u8    (Things[n].special);
++	 wf->read_u8    (Things[n].arg1  );
++	 wf->read_u8    (Things[n].arg2  );
++	 wf->read_u8    (Things[n].arg3  );
++	 wf->read_u8    (Things[n].arg4  );
++	 wf->read_u8    (Things[n].arg5  );
+ 	 if (wf->error ())
+ 	    {
+ 	    err ("%s: error reading thing #%ld", lump_name, n);
+@@ -283,7 +300,7 @@ if (yg_level_format != YGLF_ALPHA)
+       NumLineDefs = 0;
+    else
+       {
+-      if (MainWad == Iwad4)  // Hexen mode
++      if (yg_level_format == YGLF_HEXEN)  // Hexen mode
+ 	 {
+ 	 NumLineDefs = (int) (dir->dir.size / WAD_HEXEN_LINEDEF_BYTES);
+ 	 if ((i32) (NumLineDefs * WAD_HEXEN_LINEDEF_BYTES) != dir->dir.size)
+@@ -310,7 +327,7 @@ if (yg_level_format != YGLF_ALPHA)
+ 	 rc = 1;
+ 	 goto byebye;
+ 	 }
+-      if (MainWad == Iwad4)  // Hexen mode
++      if (yg_level_format == YGLF_HEXEN)  // Hexen mode
+ 	 for (long n = 0; n < NumLineDefs; n++)
+ 	    {
+ 	    u8 dummy[6];
+@@ -322,6 +339,10 @@ if (yg_level_format != YGLF_ALPHA)
+ 	    wf->read_i16   (&LineDefs[n].sidedef2);
+ 	    LineDefs[n].type = dummy[0];
+ 	    LineDefs[n].tag  = dummy[1];  // arg1 often contains a tag
++		LineDefs[n].arg2 = dummy[2];
++		LineDefs[n].arg3 = dummy[3];
++		LineDefs[n].arg4 = dummy[4];
++		LineDefs[n].arg5 = dummy[5];
+ 	    if (wf->error ())
+ 	       {
+ 	       err ("%s: error reading linedef #%ld", lump_name, n);
+@@ -907,6 +928,37 @@ else  // Doom alpha--a wholly different 
+    }
+ }
+ 
++// Read BEHAVIOR
++if (yg_level_format == YGLF_HEXEN)
++{
++const char *lump_name = "BEHAVIOR";
++verbmsg (" behavior\n");
++dir = FindMasterDir (Level, lump_name);
++if (dir)
++   {
++   BehaviorSize = (int)dir->dir.size;
++   if (BehaviorSize > 0)
++      {
++      Behavior = (u8*) GetFarMemory ((unsigned long) BehaviorSize );
++      const Wad_file *wf = dir->wadfile;
++      wf->seek (dir->dir.start);
++      if (wf->error ())
++         {
++         err ("%s: seek error", lump_name);
++         rc = 1;
++         goto byebye;
++         }
++      wf->read_bytes (Behavior, BehaviorSize);
++      if (wf->error ())
++         {
++         err ("%s: error behavior lump", lump_name);
++         rc = 1;
++         goto byebye;
++         }
++      }
++   }
++}
++
+ /* Sanity checking on sidedefs: the sector must exist. I don't
+    make this a fatal error, though, because it's not exceptional
+    to find wads with unused sidedefs with a sector# of -1. Well
+@@ -1011,16 +1063,10 @@ int SaveLevelData (const char *outfile, 
+ FILE   *file;
+ MDirPtr dir;
+ int     n;
+-long	lump_offset[WAD_LL__];
+-size_t	lump_size[WAD_LL__];
++long	lump_offset[WAD_LL__MAX];
++size_t	lump_size[WAD_LL__MAX];
+ wad_level_lump_no_t l;
+ 
+-if (yg_level_format == YGLF_HEXEN || ! strcmp (Game, "hexen"))
+-   {
+-   Notify (-1, -1, "I refuse to save. Hexen mode is still",
+-                   "too badly broken. You would lose data.");
+-   return 1;
+-   }
+ if (! level_name || ! levelname2levelno (level_name))
+    {
+    nf_bug ("SaveLevelData: bad level_name \"%s\", using \"E1M1\" instead.",
+@@ -1047,9 +1093,15 @@ bool reuse_nodes = Level
+   && ! MadeMapChanges
+   && yg_level_format != YGLF_ALPHA;
+ 
++int NumLumps;
++if (yg_level_format == YGLF_HEXEN)
++   NumLumps = WAD_LL__HEXEN;
++else
++   NumLumps = WAD_LL__DOOM;
++
+ // Write the pwad header
+ WriteBytes (file, "PWAD", 4);		// Pwad file
+-file_write_i32 (file, WAD_LL__);	// Number of entries = 11
++file_write_i32 (file, NumLumps);	// Number of entries = 11
+ file_write_i32 (file, 0);		// Fix this up later
+ if (Level)
+    dir = Level->next;
+@@ -1067,11 +1119,30 @@ lump_offset[l] = ftell (file);
+ ObjectsNeeded (OBJ_THINGS, 0);
+ for (n = 0; n < NumThings; n++)
+    {
+-   file_write_i16 (file, Things[n].xpos );
+-   file_write_i16 (file, Things[n].ypos );
+-   file_write_i16 (file, Things[n].angle);
+-   file_write_i16 (file, Things[n].type );
+-   file_write_i16 (file, Things[n].when );
++   if (yg_level_format == YGLF_HEXEN)
++      {
++      file_write_i16 (file, Things[n].tid  );
++      file_write_i16 (file, Things[n].xpos );
++      file_write_i16 (file, Things[n].ypos );
++      file_write_i16 (file, Things[n].height);
++      file_write_i16 (file, Things[n].angle);
++      file_write_i16 (file, Things[n].type );
++      file_write_i16 (file, Things[n].when );
++      WriteBytes     (file, &Things[n].special, 1);
++      WriteBytes     (file, &Things[n].arg1, 1 );
++      WriteBytes     (file, &Things[n].arg2, 1 );
++      WriteBytes     (file, &Things[n].arg3, 1 );
++      WriteBytes     (file, &Things[n].arg4, 1 );
++      WriteBytes     (file, &Things[n].arg5, 1 );
++	  }
++   else
++      {
++      file_write_i16 (file, Things[n].xpos );
++      file_write_i16 (file, Things[n].ypos );
++      file_write_i16 (file, Things[n].angle);
++      file_write_i16 (file, Things[n].type );
++      file_write_i16 (file, Things[n].when );
++      }
+    }
+ lump_size[l] = ftell (file) - lump_offset[l];
+ if (Level)
+@@ -1083,13 +1154,32 @@ lump_offset[WAD_LL_LINEDEFS] = ftell (fi
+ ObjectsNeeded (OBJ_LINEDEFS, 0);
+ for (n = 0; n < NumLineDefs; n++)
+    {
+-   file_write_i16 (file, LineDefs[n].start   );
+-   file_write_i16 (file, LineDefs[n].end     );
+-   file_write_i16 (file, LineDefs[n].flags   );
+-   file_write_i16 (file, LineDefs[n].type    );
+-   file_write_i16 (file, LineDefs[n].tag     );
+-   file_write_i16 (file, LineDefs[n].sidedef1);
+-   file_write_i16 (file, LineDefs[n].sidedef2);
++   if (yg_level_format == YGLF_HEXEN)
++      {
++      u8 dummy[6];
++      dummy[0] = LineDefs[n].type;
++      dummy[1] = LineDefs[n].tag;
++      dummy[2] = LineDefs[n].arg2;
++      dummy[3] = LineDefs[n].arg3;
++      dummy[4] = LineDefs[n].arg4;
++      dummy[5] = LineDefs[n].arg5;
++      file_write_i16 (file, LineDefs[n].start   );
++      file_write_i16 (file, LineDefs[n].end     );
++      file_write_i16 (file, LineDefs[n].flags   );
++      WriteBytes     (file, dummy, 6);
++      file_write_i16 (file, LineDefs[n].sidedef1);
++      file_write_i16 (file, LineDefs[n].sidedef2);
++	  }
++   else
++      {
++      file_write_i16 (file, LineDefs[n].start   );
++      file_write_i16 (file, LineDefs[n].end     );
++      file_write_i16 (file, LineDefs[n].flags   );
++      file_write_i16 (file, LineDefs[n].type    );
++      file_write_i16 (file, LineDefs[n].tag     );
++      file_write_i16 (file, LineDefs[n].sidedef1);
++      file_write_i16 (file, LineDefs[n].sidedef2);
++	  }
+    }
+ lump_size[l] = ftell (file) - lump_offset[l];
+ if (Level)
+@@ -1221,9 +1311,21 @@ lump_size[l] = ftell (file) - lump_offse
+ if (Level)
+    dir = dir->next;
+ 
++ 
++// Write the BEHAVIOR lump
++if (yg_level_format == YGLF_HEXEN)
++{
++   l = WAD_LL_BEHAVIOR;
++   lump_offset[l] = ftell (file);
++   WriteBytes(file, Behavior, BehaviorSize);
++   lump_size[l] = BehaviorSize;
++   if (Level)
++      dir = dir->next;
++}
++
+ // Write the actual directory
+ long dir_offset = ftell (file);
+-for (int L = 0; L < (int) WAD_LL__; L++)
++for (int L = 0; L < (int) NumLumps; L++)
+    {
+    file_write_i32 (file, lump_offset[L]);
+    file_write_i32 (file, lump_size[L]);
+diff -N -p -r -u yadex-1.7.0-orig/src/levels.h yadex-1.7.0/src/levels.h
+--- yadex-1.7.0-orig/src/levels.h	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/levels.h	Tue Oct 19 22:22:49 2004
+@@ -28,6 +28,8 @@ extern VPtr  Vertices;		/* vertices data
+ extern int   NumSegs;		/* number of segments */
+ extern int   NumSectors;	/* number of sectors */
+ extern SPtr  Sectors;		/* sectors data */
++extern u8*   Behavior;
++extern int   BehaviorSize;
+ 
+ // FIXME should be somewhere else
+ extern int   NumWTexture;	/* number of wall textures */
+diff -N -p -r -u yadex-1.7.0-orig/src/objects.cc yadex-1.7.0/src/objects.cc
+--- yadex-1.7.0-orig/src/objects.cc	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/objects.cc	Tue Oct 19 23:53:42 2004
+@@ -465,12 +465,28 @@ switch (objtype)
+ 	 Things[last].type  = Things[copyfrom].type;
+ 	 Things[last].angle = Things[copyfrom].angle;
+ 	 Things[last].when  = Things[copyfrom].when;
++	 Things[last].tid   = Things[copyfrom].tid;
++	 Things[last].height = Things[copyfrom].height;
++	 Things[last].special = Things[copyfrom].special;
++	 Things[last].arg1  = Things[copyfrom].arg1;
++	 Things[last].arg2  = Things[copyfrom].arg2;
++	 Things[last].arg3  = Things[copyfrom].arg3;
++	 Things[last].arg4  = Things[copyfrom].arg4;
++	 Things[last].arg5  = Things[copyfrom].arg5;
+ 	 }
+       else
+ 	 {
+ 	 Things[last].type = default_thing;
+ 	 Things[last].angle = 0;
+ 	 Things[last].when  = 0x07;
++	 Things[last].tid   = 0;
++	 Things[last].height = 0;
++	 Things[last].special = 0;
++	 Things[last].arg1  = 0;
++	 Things[last].arg2  = 0;
++	 Things[last].arg3  = 0;
++	 Things[last].arg4  = 0;
++	 Things[last].arg5  = 0;
+ 	 }
+       break;
+ 
+@@ -508,6 +524,10 @@ switch (objtype)
+ 	 LineDefs[last].flags = LineDefs[copyfrom].flags;
+ 	 LineDefs[last].type  = LineDefs[copyfrom].type;
+ 	 LineDefs[last].tag   = LineDefs[copyfrom].tag;
++	 LineDefs[last].arg2  = LineDefs[copyfrom].arg2;
++	 LineDefs[last].arg3  = LineDefs[copyfrom].arg3;
++	 LineDefs[last].arg4  = LineDefs[copyfrom].arg4;
++	 LineDefs[last].arg5  = LineDefs[copyfrom].arg5;
+ 	 }
+       else
+ 	 {
+@@ -516,6 +536,10 @@ switch (objtype)
+ 	 LineDefs[last].flags = 1;
+ 	 LineDefs[last].type  = 0;
+ 	 LineDefs[last].tag   = 0;
++	 LineDefs[last].arg2  = 0;
++	 LineDefs[last].arg3  = 0;
++	 LineDefs[last].arg4  = 0;
++	 LineDefs[last].arg5  = 0;
+ 	 }
+       LineDefs[last].sidedef1 = OBJ_NO_NONE;
+       LineDefs[last].sidedef2 = OBJ_NO_NONE;
+diff -N -p -r -u yadex-1.7.0-orig/src/sanity.cc yadex-1.7.0/src/sanity.cc
+--- yadex-1.7.0-orig/src/sanity.cc	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/sanity.cc	Tue Oct 19 22:11:08 2004
+@@ -67,10 +67,10 @@ void check_types ()
+   assert_size (i16, 2);
+   assert_size (u32, 4);
+   assert_size (i32, 4);
+-  assert_size (struct LineDef, 14);
++  assert_size (struct LineDef, 18);
+   assert_size (struct Sector,  26);
+   assert_size (struct SideDef, 30);
+-  assert_size (struct Thing,   10);
++  assert_size (struct Thing,   20);
+   assert_size (struct Vertex,   4);
+   assert_wrap (u8,          255,           0);
+   assert_wrap (i8,          127,        -128);
+diff -N -p -r -u yadex-1.7.0-orig/src/t_prop.cc yadex-1.7.0/src/t_prop.cc
+--- yadex-1.7.0-orig/src/t_prop.cc	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/t_prop.cc	Tue Oct 19 23:43:46 2004
+@@ -45,6 +45,7 @@ Place, Suite 330, Boston, MA 02111-1307,
+ static const char *PrintThinggroup (void *ptr);
+ static const char *PrintThingdef (void *ptr);
+ int InputThingType (int x0, int y0, int *number);
++int InputLinedefType (int x0, int y0, int *number);
+ 
+ 
+ /*
+@@ -59,9 +60,9 @@ int    n, val;
+ SelPtr cur;
+ int    subwin_y0;
+ 
+-for (n = 0; n < 6; n++)
++for (n = 0; n < 14; n++)
+    menustr[n] = (char *) GetMemory (60);
+-sprintf (menustr[5], "Edit thing #%d", obj->objnum);
++sprintf (menustr[13], "Edit thing #%d", obj->objnum);
+ sprintf (menustr[0], "Change type          (Current: %s)",
+          get_thing_name (Things[obj->objnum].type));
+ sprintf (menustr[1], "Change angle         (Current: %s)",
+@@ -72,14 +73,47 @@ sprintf (menustr[3], "Change X position 
+          Things[obj->objnum].xpos);
+ sprintf (menustr[4], "Change Y position    (Current: %d)",
+          Things[obj->objnum].ypos);
+-val = vDisplayMenu (x0, y0, menustr[5],
++sprintf (menustr[5], "Change Z position    (Current: %d)",
++         Things[obj->objnum].height);
++sprintf (menustr[6], "Change TID           (Current: %d)",
++         Things[obj->objnum].tid);
++sprintf (menustr[7], "Change special       (Current: %d)",
++         Things[obj->objnum].special);
++sprintf (menustr[8], "Change arg1          (Current: %d)",
++         Things[obj->objnum].arg1);
++sprintf (menustr[9], "Change arg2          (Current: %d)",
++         Things[obj->objnum].arg2);
++sprintf (menustr[10], "Change arg3          (Current: %d)",
++         Things[obj->objnum].arg3);
++sprintf (menustr[11], "Change arg4          (Current: %d)",
++         Things[obj->objnum].arg4);
++sprintf (menustr[12], "Change arg5          (Current: %d)",
++         Things[obj->objnum].arg5);
++if (yg_level_format == YGLF_HEXEN)		// Hexen mode
++val = vDisplayMenu (x0, y0, menustr[13],
+    menustr[0], YK_, 0,
+    menustr[1], YK_, 0,
+    menustr[2], YK_, 0,
+    menustr[3], YK_, 0,
+    menustr[4], YK_, 0,
++   menustr[5], YK_, 0,
++   menustr[6], YK_, 0,
++   menustr[7], YK_, 0,
++   menustr[8], YK_, 0,
++   menustr[9], YK_, 0,
++   menustr[10], YK_, 0,
++   menustr[11], YK_, 0,
++   menustr[12], YK_, 0,
+    NULL);
+-for (n = 0; n < 6; n++)
++else
++val = vDisplayMenu (x0, y0, menustr[13],
++   menustr[0], YK_, 0,
++   menustr[1], YK_, 0,
++   menustr[2], YK_, 0,
++   menustr[3], YK_, 0,
++   menustr[4], YK_, 0,
++   NULL);
++for (n = 0; n < 14; n++)
+    FreeMemory (menustr[n]);
+ subwin_y0 = y0 + BOX_BORDER + (2 + val) * FONTH;
+ switch (val)
+@@ -237,6 +271,93 @@ switch (val)
+ 	n = val - Things[obj->objnum].ypos;
+ 	for (cur = obj; cur; cur = cur->next)
+ 	   Things[cur->objnum].ypos += n;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 6:
++     val = InputIntegerValue (x0 + 42, subwin_y0, -32768, 32767,
++                              Things[obj->objnum].height);
++     if (val != IIV_CANCEL)
++        {
++	n = val - Things[obj->objnum].height;
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].height += n;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 7:
++     val = InputIntegerValue (x0 + 42, subwin_y0, -32768, 32767,
++                              Things[obj->objnum].tid);
++     if (val != IIV_CANCEL)
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].tid = val;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 8:
++     if (! InputLinedefType (x0 + 42, subwin_y0, &val))
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].special = val;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 9:
++     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
++                              Things[obj->objnum].arg1);
++     if (val != IIV_CANCEL)
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].arg1 = val;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 10:
++     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
++                              Things[obj->objnum].arg2);
++     if (val != IIV_CANCEL)
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].arg2 = val;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 11:
++     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
++                              Things[obj->objnum].arg3);
++     if (val != IIV_CANCEL)
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].arg3 = val;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 12:
++     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
++                              Things[obj->objnum].arg4);
++     if (val != IIV_CANCEL)
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].arg4 = val;
++	MadeChanges = 1;
++        }
++     break;
++
++  case 13:
++     val = InputIntegerValue (x0 + 42, subwin_y0, 0, 255,
++                              Things[obj->objnum].arg5);
++     if (val != IIV_CANCEL)
++        {
++	for (cur = obj; cur; cur = cur->next)
++	   Things[cur->objnum].arg5 = val;
+ 	MadeChanges = 1;
+         }
+      break;
+diff -N -p -r -u yadex-1.7.0-orig/src/wstructs.h yadex-1.7.0/src/wstructs.h
+--- yadex-1.7.0-orig/src/wstructs.h	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/src/wstructs.h	Tue Oct 19 22:45:16 2004
+@@ -84,14 +84,30 @@ typedef i16 wad_tangle_t;
+ typedef i16 wad_tflags_t;
+ struct Thing
+ {
++  i16              tid;
+   wad_coord_t      xpos;		// FIXME rename to "x"
+   wad_coord_t      ypos;		// FIXME rename to "y"
++  wad_z_t          height;
+   wad_tangle_t     angle;
+   wad_ttype_t      type;
+   wad_tflags_t     when;		// FIXME rename to "flags"
++  u8               special;
++  u8               arg1;
++  u8               arg2;
++  u8               arg3;
++  u8               arg4;
++  u8               arg5;
+ };
+ typedef struct
+ {
++  wad_coord_t      xpos;		// FIXME rename to "x"
++  wad_coord_t      ypos;		// FIXME rename to "y"
++  wad_tangle_t     angle;
++  wad_ttype_t      type;
++  wad_tflags_t     when;		// FIXME rename to "flags"
++} wad_doom_thing_t;
++typedef struct
++{
+   i16              tid;
+   wad_coord_t      x;
+   wad_coord_t      y;
+@@ -121,11 +137,25 @@ struct LineDef
+   wad_ldflags_t flags;
+   wad_ldtype_t  type;
+   wad_tag_t     tag;
++  u8            arg2;
++  u8            arg3;
++  u8            arg4;
++  u8            arg5;
+   wad_sdn_t     sidedef1;		// # of first (right) sidedef
+   wad_sdn_t     sidedef2;		// # of second (left) sidedef or 0xffff
+ };
+ typedef struct
+ {
++  wad_vn_t      start;			// # of start vertex
++  wad_vn_t      end;			// # of end vertex
++  wad_ldflags_t flags;
++  wad_ldtype_t  type;
++  wad_tag_t     tag;
++  wad_sdn_t     sidedef1;		// # of first (right) sidedef
++  wad_sdn_t     sidedef2;		// # of second (left) sidedef or 0xffff
++} wad_doom_linedef_t;
++typedef struct
++{
+   wad_vn_t      start;
+   wad_vn_t      end;
+   wad_ldflags_t flags;
+@@ -197,8 +227,11 @@ typedef enum
+   WAD_LL_SECTORS,
+   WAD_LL_REJECT,
+   WAD_LL_BLOCKMAP,
+-		      // Hexen has a BEHAVIOR lump here
+-  WAD_LL__
++  WAD_LL_BEHAVIOR,
++
++  WAD_LL__MAX,
++  WAD_LL__HEXEN = WAD_LL__MAX,
++  WAD_LL__DOOM = WAD_LL_BEHAVIOR
+ } wad_level_lump_no_t;
+ 
+ typedef struct
+@@ -207,7 +240,7 @@ typedef struct
+   size_t item_size;
+ } wad_level_lump_def_t;
+ 
+-const wad_level_lump_def_t wad_level_lump[WAD_LL__] =
++const wad_level_lump_def_t wad_level_lump[WAD_LL__MAX] =
+ {
+   { 0,          0                 },  // Label -- no fixed name
+   { "THINGS",   WAD_THING_BYTES   },
+@@ -219,8 +252,8 @@ const wad_level_lump_def_t wad_level_lum
+   { "NODES",    0                 },
+   { "SECTORS",  WAD_SECTOR_BYTES  },
+   { "REJECT",   0                 },
+-  { "BLOCKMAP", 0                 }
+-				      // Hexen has a BEHAVIOR lump here
++  { "BLOCKMAP", 0                 },
++  { "BEHAVIOR", 0                 }
+ };
+ 
+ 
+--- yadex-1.7.0-orig/ygd/hexen.ygd	Tue Oct 19 20:53:55 2004
++++ yadex-1.7.0/ygd/hexen.ygd	Wed Oct 20 23:55:14 2004
+@@ -108,6 +108,7 @@ ldt 100 x "?? Scroll left"   "??  Scroll
+ ldt 101 x "?? Scroll right"  "??  Scroll_Texture_Right"
+ ldt 102 x "?? Scroll up"     "??  Scroll_Texture_Up"
+ ldt 103 x "?? Scroll down"   "??  Scroll_Texture_Down"
++ldt 109 L "?? Force lightng" "??  Light_ForceLightning"
+ ldt 110 L "?? Raise light"   "??  Light_RaiseByValue"
+ ldt 111 L "?? Lower light"   "??  Light_LowerByValue"
+ ldt 112 L "?? Set light"     "??  Light_ChangeToValue"
+@@ -136,25 +137,12 @@ ldt 140 x "?? Change sound"  "??  Sector
+ #
+ 
+ st   0 "  Normal"       "Normal"
+-st   1 "  Phased light" "light phased"           # FIXME
+-st   2 "  Light start"  "lightsequencestart"     # FIXME
+-st   3 "  Light specl1" "lightsequencespecial1"  # FIXME
+-st   4 "  Light specl2" "lightsequencespecial2"  # FIXME
+-st   9 "  Secret"       "Sector counts toward secret count"
++st   1 "  Phased light" "light phased"
++st   2 "  Light start"  "lightsequencestart"
++st   3 "  Light specl1" "lightsequencespecial1"
++st   4 "  Light specl2" "lightsequencespecial2"
+ st  26 "  Stairs1"      "Stairs special 1"
+ st  27 "  Stairs2"      "Stairs special 2"
+-st  40 "  Wind east 1"  "Wind east force 1"
+-st  41 "  Wind east 2"  "Wind east force 2"
+-st  42 "  Wind east 3"  "Wind east force 3"
+-st  43 "  Wind north 1" "Wind north force 1"
+-st  44 "  Wind north 2" "Wind north force 2"
+-st  45 "  Wind north 3" "Wind north force 3"
+-st  46 "  Wind south 1" "Wind south force 1"
+-st  47 "  Wind south 2" "Wind south force 2"
+-st  48 "  Wind south 3" "Wind south force 3"
+-st  49 "  Wind west 1"  "Wind west force 1"
+-st  50 "  Wind west 2"  "Wind west force 2"
+-st  51 "  Wind west 3"  "Wind west force 3"
+ st 198 "  Lightning 64" "Indoor lightning, +64 units"
+ st 199 "  Lightning 32" "Indoor lightning, +32 units"
+ st 200 "  Sky2"         "Use MAPINFO sky2"
+@@ -191,17 +179,21 @@ st 224 "  Scroll SW F"  "Scroll southwes
+ thinggroup p rgb:4/f/4 "Player"
+ thinggroup m rgb:f/0/0 "Monster"
+ thinggroup w rgb:f/a/0 "Weapon"
+-thinggroup a rgb:8/5/0 "Ammunition"
++thinggroup a rgb:8/5/0 "Mana"
+ thinggroup h rgb:2/8/0 "Health & armour"
++thinggroup A rgb:2/8/0 "Artifacts"
++thinggroup q rgb:2/8/0 "Quest items"
+ thinggroup b rgb:2/8/0 "Misc. bonus"
+ thinggroup k rgb:f/0/f "Key"
+ thinggroup P rgb:6/6/c "Plants"
++thinggroup t rgb:6/6/c "Stalagm. & stalact."
++thinggroup g rgb:6/6/c "Gargoyle statues"
++thinggroup T rgb:6/6/c "Table stuff"
++thinggroup D rgb:6/6/c "Dungeon stuff"
+ thinggroup d rgb:6/6/c "Misc. decoration"
+ thinggroup l rgb:6/6/c "Light source"
+-#thinggroup g rgb:6/6/c "Gory decoration"
+-#thinggroup c rgb:6/6/c "Corpse"
+-thinggroup e rgb:0/b/d "Environment sound"
+-thinggroup s rgb:0/b/d "Ambient sound"
++thinggroup s rgb:0/b/d "Sound"
++thinggroup S rgb:0/b/d "Special"
+ 
+ #
+ #	Definition of things
+@@ -210,56 +202,268 @@ thinggroup s rgb:0/b/d "Ambient sound"
+ #	<desc> must not exceed 19 characters.
+ #
+ 
+-thing     1 p -   16 "Player 1 start"		PLAY
+-thing     2 p -   16 "Player 2 start"		PLAY
+-thing     3 p -   16 "Player 3 start"		PLAY
+-thing     4 p -   16 "Player 4 start"		PLAY
++thing     1 p -   16 "Player 1 start *"		PLAY
++thing     2 p -   16 "Player 2 start *"		PLAY
++thing     3 p -   16 "Player 3 start *"		PLAY
++thing     4 p -   16 "Player 4 start *"		PLAY
+ thing    11 p -   16 "Deathmatch start"		PLAYF1
+ thing    14 p -   16 "Teleport exit"		TELE
++thing  9100 p -   16 "Player 5 start *"		PLAY
++thing  9101 p -   16 "Player 6 start *"		PLAY
++thing  9102 p -   16 "Player 7 start *"		PLAY
++thing  9103 p -   16 "Player 8 start *"		PLAY
+ 
+-thing    31 m -   32 "Demon"			DEMN
++thing    31 m -   32 "Chaos serpent"		DEMN
++thing    34 m -   40 "Reiver"			WRTH
+ thing   107 m -   20 "Centaur"			CENT
++thing   114 m -   44 "Dark bishop"		BISH
+ thing   115 m -   20 "Centaur leader"		CENTF
+-thing   120 m -   17 "Serpent leader"		SSPTK	# Not too sure...
+-thing   121 m -   17 "Serpent"			SSDV	# Not too sure...
+-thing  8020 m -   22 "Ice guy"			ICEY
++thing   120 m -   17 "Stalker leader"		SSPTK
++thing   121 m -   17 "Stalker"			SSDV
++thing   254 m -   40 "Death wyvern *"		DRAG
++thing  8020 m -   22 "Wendigo"			ICEY
++thing  8080 m -   64 "Chaos serpent (gas)"	DEM2
++thing 10011 m -   40 "Reiver leader"		WRTH
+ thing 10030 m -   25 "Ettin"			ETTN
+-thing 10060 m -   20 "Fire demon"		FDMN
+-
+-thing    10 w -   17 "Serpent staff"		WCSS   # Cleric
+-thing    53 w -   17 "Frost chards"		WMCS   # Mage
+-thing  8010 w -   17 "Timon's axe"		WFAX   # Fighter
++thing 10060 m -   20 "Fire gargoyle"		FDMN
++thing 10080 m -   80 "Heresiarch"		SORC
++thing 10100 m -   32 "Zedek (fighter)"		PLAYA8
++thing 10101 m -   32 "Traductus (cleric)"	CLERA8
++thing 10102 m -   32 "Menelkir (mage)"		MAGEA8
++thing 10200 m -   20 "Korax"			KORX
++
++thing    10 w -   17 "Serpent staff"		WCSS
++thing    12 w -   20 "Quietus blade"		WFR1
++thing    13 w -   20 "Quietus guard"		WFR2
++thing    16 w -   20 "Quietus hilt"		WFR3
++thing    18 w -   20 "Wraithverge head"		WCH1
++thing    19 w -   20 "Wraithverge center"	WCH2
++thing    20 w -   20 "Wraithverge grip"		WCH3
++thing    21 w -   20 "Bloodscourge head"	WMS1
++thing    22 w -   20 "Bloodscourge center"	WMS2
++thing    23 w -   20 "Bloodscourge grip"	WMS3
++thing    53 w -   17 "Frost chards"		WMCS
++thing   123 w -   10 "Hammer of retributn"	WFHM
++thing  8009 w -   10 "Firestorm"		WCFM
++thing  8010 w -   17 "Timon's axe"		WFAX
++thing  8040 w -   20 "Arc of death"		WMLG
+ 
+ thing   122 a -   17 "Blue manna"		MAN1
+ thing   124 a -   17 "Green manna"		MAN2
+ thing  8004 a -   17 "Combined manna"		MAN3
+ 
+ thing    81 h -   17 "Crystal vial"		PTN1
+-thing    82 h -   17 "Quartz flask"		PTN2
+-thing  8000 h -   17 "Flechette"		PSBG
++thing  8005 h -   10 "Mesh armor"		ARM1
++thing  8006 h -   20 "Falcon shield"		ARM2
+ thing  8007 h -   17 "Platinum helmet"		ARM3
++thing  8008 h -   20 "Amulet of warding"	ARM4
+ 
+-thing   314 k -   17 "Stone (?) key"		KEY7
++thing    30 A -   20 "Porkalator"		ARTIPORK
++thing    32 A -   20 "Mystic urn"		ARTISPHL
++thing    33 A -   20 "Torch"			ARTITRCH
++thing    36 A -   20 "Chaos device"		ARTIATLP
++thing    82 A -   17 "Quartz flask"		PTN2
++thing    83 A -   20 "Wings of wrath"		SOAR
++thing    84 A -   20 "Icon of defender"		INVU
++thing    86 A -   15 "Dark servant"		ARTISUMN
++thing  8000 A -   17 "Flechette"		PSBG
++thing  8002 A -   20 "Boots of speed"		ARTISPED
++thing  8003 A -   20 "Krater of might"		ARTIBMAN
++thing  8041 A -   20 "Dragonskin bracers"	ARTIBRAC
++thing 10040 A -   20 "Banishment device"	ARTITELO
++thing 10110 A -   20 "Disc of repulsion"	ARTIBLST
++thing 10120 A -   20 "Mystic ambient inc"	ARTIHRAD
++
++thing  9002 q -   20 "Yorick's skull"		ARTISKLL
++thing  9003 q -   20 "Heart of D'Sparil"	ARTIBGEM
++thing  9004 q -   20 "Ruby planet"		ARTIGEMR
++thing  9005 q -   20 "Emerald planet 1"		ARTIGEMG
++thing  9006 q -   20 "Sapphire planet 1"	ARTIGEMB
++thing  9007 q -   20 "Daemon codex"		ABK1
++thing  9008 q -   20 "Liber oscura"		ABK2
++thing  9009 q -   20 "Emerald planet 2"		ARTIGMG2
++thing  9010 q -   20 "Sapphire planet 2"	ARTIGMB2
++thing  9014 q -   20 "Flame mask"		ARTISKL2
++thing  9015 q -   20 "Glaive seal"		ARTIFWEP
++thing  9016 q -   20 "Holy relic"		ARTICWEP
++thing  9017 q -   20 "Sigil of the Magus"	ARTIMWEP
++thing  9018 q -   20 "Clock gear 1"		ARTIGEAR
++thing  9019 q -   20 "Clock gear 2"		ARTIGER2
++thing  9020 q -   20 "Clock gear 3"		ARTIGER3
++thing  9021 q -   20 "Clock gear 4"		ARTIGER4
++
++thing  8030 k -   10 "Steel key"		KEY1
++thing  8031 k -   10 "Cave key"			KEY2
++thing  8032 k -   10 "Axe key"			KEY3
++thing  8033 k -   10 "Fire key"			KEY4
++thing  8034 k -   10 "Emerald key"		KEY5
++thing  8035 k -   10 "Dungeon key"		KEY6
++thing  8036 k -   10 "Silver key"		KEY7
++thing  8037 k -   10 "Rusted key"		KEY8
++thing  8038 k -   10 "Horn key"			KEY9
++thing  8039 k -   10 "Swamp key"		KEYA
++thing  8200 k -   10 "Castle key"		KEYB
+ 
++thing    24 P -   20 "Tree trunk (brown)"	TRE1
++thing    25 P -   20 "Tree trunk (brownD)"	TRE1
+ thing    26 P -   17 "Swamp tree tall"		TRE2
+ thing    27 P -   17 "Swamp tree short"		TRE3
++thing    28 P -   20 "Tree stump (splint)"	STM1
++thing    29 P -   20 "Tree stump"		STM2
++thing    39 P -   20 "Mushroom (large, L)"	MSH1
++thing    40 P -   20 "Mushroom (large, R)"	MSH2
++thing    41 P -   20 "Mushroom (med, L)"	MSH3
++thing    42 P -   20 "Mushroom (small, R)"	MSH4
++thing    44 P -   20 "Mushroom (small)"		MSH5
++thing    45 P -   20 "Mushroom (small, F)"	MSH6
++thing    46 P -   20 "Mushroom (small, B)"	MSH7
++thing    47 P -   20 "Mushroom (small, M)"	MSH8
++thing    60 P -   20 "Vine"			TRE3
+ thing    78 P -   17 "Tree leaning right"	TRE4
+ thing    79 P -   17 "Tree leaning left"	TRE5
+ thing    80 P -   17 "Gnarled tree right"	TRE6
+ thing    87 P -   17 "Gnarled tree left"	TRE7
++thing   113 P -   10 "Blowing leaves"		LEF1
+ thing  8062 P -   17 "Dead tree"		TRDT
+ thing  8068 P -   17 "Conic tree"		XMAS
+-
+-thing    48 d -   17 "Stalactite+gmite"		SGMP
+-thing    72 d -   17 "Statue"			STT2
+-thing    74 d -   17 "Short statue"		STT4
++thing  8101 P -   20 "Shrub (small)"		SHB1
++thing  8102 P -   20 "Shrub (large)"		SHB2
++thing  8103 P -   20 "Bucket (hanging)"		BCKT
++thing  8104 P -   20 "Mushroom (explodng)"	SHRM
++
++thing    48 t -   17 "Stalactite+gmite"		SGMP
++thing    49 t -   20 "Stalagmite (large)"	SGM1
++thing    50 t -   20 "Stalagmite (medium)"	SGM2
++thing    51 t -   20 "Stalagmite (small)"	SGM3
++thing    52 t -   20 "Stalactite (large)"	SLC1
++thing    56 t -   20 "Stalactite (medium)"	SLC2
++thing    57 t -   20 "Stalactite (small)"	SLC3
++thing    89 t -   20 "Ice stalactite(lrg)"	ICT1
++thing    90 t -   20 "Ice stalactite(med)"	ICT2
++thing    91 t -   20 "Ice stalactite(sml)"	ICT3
++thing    92 t -   20 "Ice stalactite(tny)"	ICT4
++thing    93 t -   20 "Ice stalagmite(lrg)"	ICM1
++thing    94 t -   20 "Ice stalagmite(med)"	ICM2
++thing    95 t -   20 "Ice stalagmite(sml)"	ICM3
++thing    96 t -   20 "Ice stalagmite(tny)"	ICM4
++
++thing     5 g -   20 "Gargoyle statue w/s"	STTW
++thing    72 g -   17 "Stone gargoyle tall"	STT2
++thing    73 g -   20 "Ice gargoyle tall"	STT3
++thing    74 g -   17 "Stone gargoyle shrt"	STT4
++thing    76 g -   20 "Ice gargoyle short"	STT5
++thing  8044 g -   20 "Wooden gargoyle tal"	GAR1
++thing  8045 g -   20 "Fire gargoyle tall"	GAR2
++thing  8046 g -   20 "Red gargoyle tall"	GAR3
++thing  8047 g -   20 "Wooden gargoyle tal"	GAR4
++thing  8048 g -   20 "Metal gargoyle tall"	GAR5
++thing  8049 g -   20 "Fire gargoyle short"	GAR6
++thing  8050 g -   20 "Red gargoyle short"	GAR7
++thing  8051 g -   20 "Wooden gargoyle srt"	GAR8
++thing  8052 g -   20 "Metal gargoyle shrt"	GAR9
++thing  9011 g -   20 "Gargoyle statue"		STWN
++
++thing  8500 T -   20 "Stein (tall)"		TST1
++thing  8501 T -   20 "Stein (short)"		TST2
++thing  8502 T -   20 "Candle w/spider web"	TST3
++thing  8503 T -   20 "Candle (short)"		TST4
++thing  8504 T -   20 "Candle (tall)"		TST5
++thing  8505 T -   20 "Goblet (spilled)"		TST6
++thing  8506 T -   20 "Goblet (tall)"		TST7
++thing  8507 T -   20 "Goblet (short)"		TST8
++thing  8508 T -   20 "Goblet w/silver bnd"	TST9
++thing  8509 T -   20 "Meat cleaver"		TST0
++
++thing    61 D -   20 "Corpse impaled"		CPS1
++thing    62 D -   20 "Corpse sleeping"		CPS2
++thing    71 D -   20 "Corpse hung legs"		CPS3
++thing   108 D -   20 "Corpse hung"		CPS4
++thing   109 D -   20 "Corpse bleeding"		CPS5
++thing   110 D -   20 "Corpse chained"		CPS6
++thing   111 D -   10 "Pool of blood"		BDPL
++thing  8067 D -   20 "Iron maiden"		IRON
++thing  8071 D -   20 "Chain (short)"		CHNS
++thing  8072 D -   20 "Chain (long)"		CHNSB0
++thing  8073 D -   20 "Chain heart on hook"	CHNSC0
++thing  8074 D -   20 "Chain w/large hook"	CHNSD0
++thing  8075 D -   20 "Chain w/small hook"	CHNSE0
++thing  8076 D -   20 "Chain w/spiked ball"	CHNSF0
++thing  8077 D -   20 "Chain skull on hook"	CHNSG0
++
++thing     6 d -   20 "Rock w/moss (tiny)"	RCK1
++thing     7 d -   20 "Rock w/moss (small)"	RCK2
++thing     9 d -   20 "Rock w/moss (medium)"	RCK3
++thing    15 d -   20 "Rock w/moss (large)"	RCK4
++thing    37 d -   20 "Stump w/moss (short)"	STM3
++thing    38 d -   20 "Stump w/moss (tall)"	STM4
++thing    58 d -   20 "Moss (three strands)"	MSS1
++thing    59 d -   20 "Moss (one strand)"	MSS2
++thing    63 d -   20 "Tombstone (R.I.P.)"	TMS1
++thing    64 d -   20 "Tombstone (Shane)"	TMS2
++thing    65 d -   20 "Tombstone (large cross)"	TMS3
++thing    66 d -   20 "Tombstone (Brian R.)"	TMS4
++thing    67 d -   20 "Tombstone (circular cross)"	TMS5
++thing    68 d -   20 "Tombstone (small cross on pedestal)"	TMS6
++thing    69 d -   20 "Tombstone (Brian P.)"	TMS7
+ thing    77 d -   17 "Banner"			BNR1
+-
+-thing    54 l -   17 "Torch"			WLTR
+-thing  8061 l -   17 "FIXME"			BRTR
+-
+-thing   314 e -   17 "Bogus sound"
+-
+-thing   314 s -   17 "Bogus sound"
+-
+-
++thing    88 d -   20 "Log"			LOGG
++thing    97 d -   20 "Rock formation (large, brown)"	RKBL
++thing    98 d -   20 "Rock formation (small, brown)"	RKBS
++thing    99 d -   20 "Rock formation (small, gray)"	RKBK
++thing   100 d -   20 "Rubble (large)"		RBL1
++thing   101 d -   20 "Rubble (small)"		RBL2
++thing   102 d -   20 "Rubble (medium)"		RBL3
++thing   103 d -   20 "Vase on pedestal"		VASE
++thing   104 d -   20 "Pot (tall, skinny) *"	POT1
++thing   105 d -   20 "Pot (medium, skinny) *"	POT2
++thing   106 d -   20 "Pot (short, chipped) *"	POT3
++thing   140 d -   20 "Sparkling red smoke"	TSMK
++thing  8064 d -   20 "Suit of armor *"		SUIT
++thing  8065 d -   40 "Bell"			BBLL
++thing  8100 d -   20 "Barrel"			BARL
++thing  9012 d -   20 "Pedestal"			GMPD
++thing 10001 d -   20 "Fog (small) *"		FOGS
++thing 10002 d -   20 "Fog (medium) *"		FOGM
++thing 10003 d -   20 "Fog (large) *"		FOGL
++thing 10090 d -   20 "Spike (down)"		TSPKC0
++thing 10091 d -   20 "Spike (up)"		TSPK
++
++thing    17 l -   20 "Chandelier w/flame"	CDLR
++thing    54 l -   17 "Wall torch w/flame"	WLTR
++thing    55 l -   20 "Wall torch"		WLTRI0
++thing   116 l -   10 "Brazier w/flame"		TWTR
++thing   117 l -   10 "Brazier"			TWTRI0
++thing   119 l -   20 "Candles"			CNDL
++thing  8042 l -   20 "Minotaur statue f"	FBUL
++thing  8043 l -   20 "Minotaur statue"		FBULH0
++thing  8060 l -   20 "Fire skull"		FSKL
++thing  8061 l -   17 "Brazier w/flame sm"	BRTR
++thing  8063 l -   20 "Chandelier"		CDLRD0
++thing  8066 l -   20 "Candle (blue)"		CAND
++thing  8069 l -   20 "Cauldron (w/flame)"	CDRNB0
++thing  8070 l -   20 "Cauldron"			CDRN
++thing 10500 l -   20 "Flame (small, t) *"	FFSM
++thing 10501 l -   20 "Flame (small, cnt)"	FFSMC0
++thing 10502 l -   20 "Flame (large, t) *"	FFLG
++thing 10503 l -   20 "Flame (large, cnt)"	FFLGF0
++
++thing  1400 s -   20 "Stone"			TELE
++thing  1401 s -   20 "Heavy"			TELE
++thing  1402 s -   20 "Metal"			TELE
++thing  1403 s -   20 "Creak"			TELE
++thing  1404 s -   20 "Silent"			TELE
++thing  1405 s -   20 "Lava"			TELE
++thing  1406 s -   20 "Water"			TELE
++thing  1407 s -   20 "Ice"			TELE
++thing  1408 s -   20 "Earth crack"		TELE
++thing  1409 s -   20 "Metal2"			TELE
++thing  1410 s -   20 "Wind blowing"		TELE
++
++thing   118 S -   10 "Magic step"		TLGL
++thing  3000 S -   20 "Polyobject anchor"	ICPRD0
++thing  3001 S -   20 "Start spot"		SBFXH0
++thing  3002 S -   20 "Start spot w/crush"	SBFXC0
++thing  9001 S -   10 "Map spot *"		TELEC0
++thing  9013 S -   10 "Map spot w/gravity"	TELED0
++thing 10000 S -   20 "Spawn fog *"		SPIRK0
++thing 10225 S -   20 "Spawn bat *"		ABATC3C7

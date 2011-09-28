@@ -1,0 +1,22 @@
+--- yadex-1.7.0/GNUmakefile	2003-12-28 18:23:56.000000000 +0100
++++ yadex-1.7.0-depend2/GNUmakefile	2004-01-04 19:32:14.000000000 +0100
+@@ -609,8 +610,9 @@
+ #
+ ########################################################################
+ 
+-# If Makefile.config doesn't exist, give a hint...
++# If Makefile.config or config.h don't exist, give a hint...
+ $(OBJDIR)/Makefile.config:
++$(OBJDIR)/config.h:
+ 	@echo "Sorry guv'nor, but... did you run ./configure ?" >&2
+ 	@false
+ 
+@@ -637,7 +639,7 @@
+ # Note: the modules of Atclib are not scanned as they all
+ # depend on $(HEADERS_ATCLIB) and nothing else.
+ 
+-yadex.dep: $(SRC_NON_GEN)
++yadex.dep: $(SRC_NON_GEN) src/config.h
+ 	@echo "Generating $@"
+ 	@makedepend -f- -Y -Iatclib $(SRC_NON_GEN) 2>/dev/null	\
+ 		| awk 'sub (/^src/, "") == 1 {				\
