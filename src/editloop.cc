@@ -305,8 +305,8 @@ e.mb_menu[MBM_FILE] = new Menu (NULL,
 
 e.mb_menu[MBM_EDIT] = new Menu (NULL,
    "~Copy object(s)",          'o',    0,
-   "~Add object",              YK_INS, 0,
-   "~Delete object(s)",        YK_DEL, 0,
+   "~Add object",              'I', 0,
+   "~Delete object(s)",        '\b', 0,
    "~Exchange object numbers", 24,     0,
    "~Preferences...",          YK_F5,  0,
    "~Snap to grid",            'y',    MIF_VTICK, &e.grid_snap,		     0,
@@ -1345,8 +1345,8 @@ cancel_save_as:
             }
          }
 
-      // [F8]: pop up the "Misc. operations" menu
-      else if (is.key == YK_F8
+      // [M]: pop up the "Misc. operations" menu
+      else if (is.key == 'M'
          && e.menubar->highlighted () < 0)
          {
          e.modpopup->set (e.menubar->get_menu (MBI_MISC), 1);
@@ -2007,7 +2007,7 @@ cancel_save_as:
       }
       
       // [Del]: delete the current object
-      else if (is.key == YK_DEL
+      else if (is.key == '\b'
          && (e.Selected || e.highlighted ())) /* 'Del' */
 	 {
 	 if (e.obj_type == OBJ_THINGS
@@ -2035,7 +2035,7 @@ cancel_save_as:
 	 }
 
       // [Ins]: insert a new object
-      else if (is.key == YK_INS || is.key == YK_INS + YK_SHIFT) /* 'Ins' */
+      else if (is.key == 'I' || is.key == YK_INS + YK_SHIFT) /* 'Ins' */
 	 {
 	 SelPtr cur;
          int prev_obj_type = e.obj_type;
