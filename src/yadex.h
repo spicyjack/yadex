@@ -31,9 +31,11 @@ Place, Suite 330, Boston, MA 02111-1307, USA.
 #ifndef YH_YADEX  /* DO NOT INSERT ANYTHING BEFORE THIS LINE */
 #define YH_YADEX
 
+// User defines
+// Use the stdint defines that know the target machine best.
+#define USE_STDINT    1
 
 #include "config.h"
-
 
 // Sanity checks
 #if ! (defined Y_BGI ^ defined Y_X11)
@@ -89,20 +91,30 @@ Place, Suite 330, Boston, MA 02111-1307, USA.
  */
 typedef unsigned char  u8;
 typedef signed   char  i8;
-
+#ifdef USE_STDINT
+#include <stdint.h>
+typedef uint16_t  u16;
+typedef int16_t   i16;
+typedef uint32_t  u32;
+typedef int32_t   i32;
+#else
+// standard guess, which will eventually fail
 typedef unsigned short u16;
+typedef signed   short i16;
+typedef unsigned long  u32;
+typedef signed   long  i32;
+#endif
+
 #define F_U16_D "hu"
 #define F_U16_H "hX"
 
-typedef signed   short i16;
 #define F_I16_D "hd"
 #define F_I16_H "hX"
 
-typedef unsigned long  u32;
 #define F_U32_D "lu"
 #define F_U32_H "lX"
 
-typedef signed   long  i32;
+/* typedef signed   long  i32; */
 #define F_I32_D "ld"
 #define F_I32_H "lX"
 
