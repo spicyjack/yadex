@@ -1,0 +1,82 @@
+diff --git a/src/wadlist.cc b/src/wadlist.cc
+index 266ef0f..3442ea8 100644
+--- a/src/wadlist.cc
++++ b/src/wadlist.cc
+@@ -1,6 +1,10 @@
+ /*
+  *	wadlist.cc - Wad_list class
+  *	AYM 2001-09-23
++ * 
++ * Extra patching for gcc 4.1 added 29Sep2011 by 
++ * Brian Manning <brian at portaboom dot com>
++ * Patch obtained from: https://bugzilla.redhat.com/show_bug.cgi?id=185721
+  */
+ 
+ 
+@@ -52,6 +56,7 @@ class Wad_list_priv
+ 
+ Wad_list_priv::Wad_list_priv ()
+ {
++  iter = list.begin ();
+   rewound = true;
+ }
+ 
+@@ -80,6 +85,7 @@ Wad_list::~Wad_list ()
+  */
+ void Wad_list::rewind () const
+ {
++  priv->iter = priv->list.begin ();
+   priv->rewound = true;
+ }
+ 
+@@ -98,10 +104,7 @@ void Wad_list::rewind () const
+ bool Wad_list::get (Wad_file *& wf)
+ {
+   if (priv->rewound)
+-  {
+-    priv->iter = priv->list.begin ();
+     priv->rewound = false;
+-  }
+   else
+     ++priv->iter;
+ 
+@@ -119,10 +122,7 @@ bool Wad_list::get (Wad_file *& wf)
+ bool Wad_list::get (const Wad_file *& wf) const
+ {
+   if (priv->rewound)
+-  {
+-    priv->iter = priv->list.begin ();
+     priv->rewound = false;
+-  }
+   else
+     ++priv->iter;
+ 
+@@ -157,26 +157,12 @@ void Wad_list::insert (Wad_file *wf)
+  */
+ void Wad_list::del ()
+ {
+-  list_t::iterator i;
+-
+-  if (priv->rewound)
+-  {
+-    i = priv->list.begin ();
+-  }
+-  else
+-  {
+-    i = priv->iter;
+-  }
+-  if (i == priv->list.end ())
++  if (priv->iter == priv->list.end ())
+   {
+     nf_bug ("Wad_list::del: attempt to delete last item");
+     return;
+   }
+-  priv->iter = priv->list.erase (i);
++  priv->iter = priv->list.erase (priv->iter);
+   if (priv->iter == priv->list.begin ())
+-  {
+-    priv->iter = 0;			// Catch bugs
+     priv->rewound = true;
+-  }
+ }
+-
