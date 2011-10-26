@@ -1,0 +1,800 @@
+Only in ../src/: config.cc
+Only in ../src/: config.h
+Only in ../src/: credits.cc
+diff -C6 ../orig/editlev.cc ../src/editlev.cc
+*** ../orig/editlev.cc	Fri Mar 28 06:37:32 2003
+--- ../src/editlev.cc	Sat Sep 12 20:28:13 2009
+***************
+*** 148,159 ****
+--- 148,160 ----
+  */
+  
+  void EditLevel (const char *levelname, bool newlevel)
+  {
+  ReadWTextureNames ();
+  ReadFTextureNames ();
++ ReadBoomColormapNames ();	// [WDJ]
+  patch_dir.refresh (MasterDir);
+  if (InitGfx ())
+     return;
+  /* Call init_input_status() as shortly as possible after the creation
+     of the window to minimize the risk of calling get_input_status(),
+     get_key(), have_key(), etc. with <is> still uninitialized. */
+***************
+*** 246,257 ****
+--- 247,259 ----
+  
+  ForgetLevelData ();
+  /* forget the level pointer */
+  Level = 0;
+  ForgetWTextureNames ();
+  ForgetFTextureNames ();
++ ForgetBoomColormaps ();		// [WDJ]
+  }
+  
+  
+  /*
+   *	WriteYadexLog - Keep track of time spent editing that wad file
+   *	FIXME should be in a separate module
+Only in ../src/: editlev.cc~
+diff -C6 ../orig/editloop.cc ../src/editloop.cc
+*** ../orig/editloop.cc	Thu Jul  9 17:17:59 2009
+--- ../src/editloop.cc	Sat Aug 29 02:48:16 2009
+***************
+*** 306,319 ****
+--- 306,324 ----
+     NULL);
+  
+  
+  if (yg_level_format == YGLF_HEXEN)
+     e.mb_menu[MBM_EDIT] = new Menu (NULL,
+       "~Copy object(s)",          'o',    0,
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       "~Add object",              'I', 0,
++       "~Delete object(s)",        '\b', 0,
++ #else
+        "~Add object",              YK_INS, 0,
+        "~Delete object(s)",        YK_DEL, 0,
++ #endif
+        "~Exchange object numbers", 24,     0,
+        "~Preferences...",          YK_F5,  0,
+        "~Snap to grid",            'y',    MIF_VTICK, &e.grid_snap,		     0,
+        "~Lock grid step",          'z',    MIF_VTICK, &e.grid_step_locked,	     0,
+        "Load ~BEHAVIOR lump",      'b',    0,
+        NULL);
+***************
+*** 1359,1371 ****
+--- 1364,1380 ----
+              menu_thing_flags->set_title ("Clear thing flag");
+              e.modpopup->set (menu_thing_flags, 0);
+              }
+           }
+  
+        // [F8]: pop up the "Misc. operations" menu
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       else if (is.key == 'M'
++ #else
+        else if (is.key == YK_F8
++ #endif
+           && e.menubar->highlighted () < 0)
+           {
+           e.modpopup->set (e.menubar->get_menu (MBI_MISC), 1);
+           }
+  
+        // [F9]: pop up the "Insert a standard object" menu
+***************
+*** 2070,2082 ****
+--- 2079,2095 ----
+           RedrawMap = 1;
+           DragObject = false;
+           StretchSelBox = false;
+        }
+        
+        // [Del]: delete the current object
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       else if (is.key == '\b'	// backspace
++ #else
+        else if (is.key == YK_DEL
++ #endif
+           && (e.Selected || e.highlighted ())) /* 'Del' */
+  	 {
+  	 if (e.obj_type == OBJ_THINGS
+  	  || Expert
+  	  || Confirm (-1, -1,
+  		(e.Selected && e.Selected->next ?
+***************
+*** 2098,2110 ****
+--- 2111,2127 ----
+  	 DragObject = false;
+  	 StretchSelBox = false;
+  	 RedrawMap = 1;
+  	 }
+  
+        // [Ins]: insert a new object
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       else if (is.key == 'I' || is.key == YK_INS + YK_SHIFT) /* 'Ins' */
++ #else
+        else if (is.key == YK_INS || is.key == YK_INS + YK_SHIFT) /* 'Ins' */
++ #endif
+  	 {
+  	 SelPtr cur;
+           int prev_obj_type = e.obj_type;
+  
+  	 /* first special case: if several vertices are
+  	    selected, add new linedefs */
+Only in ../src/: editloop.cc.rej
+Only in ../src/: editloop.cc~
+diff -C6 ../orig/editobj.cc ../src/editobj.cc
+*** ../orig/editobj.cc	Thu Apr 24 15:32:39 2003
+--- ../src/editobj.cc	Thu Sep 10 22:02:13 2009
+***************
+*** 931,946 ****
+  	    l->sidedef2 = -1;  /* remove ref. to 2nd SD */
+  	    l->flags &= ~0x04; /* clear "2S" bit */
+  	    l->flags |= 0x01;  /* set "Im" bit */
+  
+  	    if (is_sidedef (l->sidedef1))
+  	       {
+! 	       struct SideDef *s = SideDefs + l->sidedef1;
+! 	       strcpy (s->tex1, "-");
+! 	       strcpy (s->tex2, "-");
+! 	       strcpy (s->tex3, default_middle_texture);
+  	       }
+  	    /* Don't delete the 2nd sidedef, it could be used
+                 by another linedef. And if it isn't, the next
+                 cross-references check will delete it anyway. */
+  	    }
+  	 }
+--- 931,961 ----
+  	    l->sidedef2 = -1;  /* remove ref. to 2nd SD */
+  	    l->flags &= ~0x04; /* clear "2S" bit */
+  	    l->flags |= 0x01;  /* set "Im" bit */
+  
+  	    if (is_sidedef (l->sidedef1))
+  	       {
+! 	       struct SideDef *s = & SideDefs[ l->sidedef1 ];
+! 	       // [WDJ] Have no idea why they trashed the good side.
+! 	       if( strncmp( s->tex3, "-", WAD_TEX_NAME ) == 0 )
+! 		{
+! 		  // Middle texture is missing
+! 		  if( strncmp( s->tex2, "-", WAD_TEX_NAME) != 0 )
+! 		   {
+! 		     // [WDJ] Use the good lower texture
+! 		     strncpy (s->tex3, s->tex2, WAD_TEX_NAME);
+! 		   }else{
+! 		     // re-init (confused default)
+! 	             strncpy (s->tex3, default_middle_texture, WAD_TEX_NAME);
+! 			// [WDJ] Use of strcpy trashes the sector number
+! 			// with the string terminator when 8 char name.
+! 		   }
+! 	        }
+! 	       // Always remove the upper and lower texture on 1s linedef
+!                strcpy (s->tex1, "-");
+!                strcpy (s->tex2, "-");
+  	       }
+  	    /* Don't delete the 2nd sidedef, it could be used
+                 by another linedef. And if it isn't, the next
+                 cross-references check will delete it anyway. */
+  	    }
+  	 }
+Only in ../src/: editobj.cc~
+diff -C6 ../orig/l_prop.cc ../src/l_prop.cc
+*** ../orig/l_prop.cc	Thu Jul  9 17:17:59 2009
+--- ../src/l_prop.cc	Mon Sep 14 03:30:36 2009
+***************
+*** 39,50 ****
+--- 39,67 ----
+  #include "objid.h"
+  #include "oldmenus.h"
+  #include "game.h"
+  #include "selectn.h"
+  #include "textures.h"
+  
++ #ifdef PREDEF_COLORMAP
++ // This list should be added to from colormap section of the wad,
++ // between markers C_START and C_END
++ const int predef_colormap_size = 7;
++ // must be in alph order because of InputName
++ char * predef_colormap_list[ predef_colormap_size ] = {
++    "-",
++    "BLOODMAP",
++    "BLUEMAP",
++    "FOGMAP",
++    "LAVAMAP",
++    "MFADEMAP"
++    "NUKEMAP",	// optional
++    "WATERMAP"	// Boom predefined
++ };
++ #endif
++ 
+  
+  /*
+   *	Menu_data_ldt - Menu_data class for the linedef type
+   */
+  class Menu_data_ldt : public Menu_data
+  {
+***************
+*** 115,126 ****
+--- 132,144 ----
+    char   texname[WAD_TEX_NAME + 1];
+    int    n, val;
+    SelPtr cur, sdlist;
+    int objtype = OBJ_LINEDEFS;
+    int    subwin_y0;
+    int    subsubwin_y0;
++   char  *textureref;
+  
+    {
+      bool sd1 = LineDefs[obj->objnum].sidedef1 >= 0;
+      bool sd2 = LineDefs[obj->objnum].sidedef2 >= 0;
+      val = vDisplayMenu (x0, y0, "Choose the object to edit:",
+         "Edit the linedef",					YK_, 0,
+***************
+*** 431,482 ****
+        for (n = 0; n < 7; n++)
+  	FreeMemory (menustr[n]);
+        subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
+        switch (val)
+        {
+  	case 1:
+! 	  strncpy (texname, SideDefs[sdlist->objnum].tex3, WAD_TEX_NAME);
+! 	  ObjectsNeeded (0);
+! 	  ChooseWallTexture (x0 + 84, subsubwin_y0 ,
+! 	    "Choose a wall texture", NumWTexture, WTexture, texname);
+! 	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+! 	  if (strlen (texname) > 0)
+! 	  {
+! 	    for (cur = sdlist; cur; cur = cur->next)
+! 	      if (cur->objnum >= 0)
+! 		strncpy (SideDefs[cur->objnum].tex3, texname, WAD_TEX_NAME);
+! 	    MadeChanges = 1;
+! 	  }
+! 	  break;
+! 
+  	case 2:
+! 	  strncpy (texname, SideDefs[sdlist->objnum].tex1, WAD_TEX_NAME);
+  	  ObjectsNeeded (0);
+! 	  ChooseWallTexture (x0 + 84, subsubwin_y0,
+! 	     "Choose a wall texture", NumWTexture, WTexture, texname);
+! 	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+! 	  if (strlen (texname) > 0)
+  	  {
+! 	    for (cur = sdlist; cur; cur = cur->next)
+! 	      if (cur->objnum >= 0)
+! 		strncpy (SideDefs[cur->objnum].tex1, texname, WAD_TEX_NAME);
+! 	    MadeChanges = 1;
+  	  }
+- 	  break;
+- 
+- 	case 3:
+- 	  strncpy (texname, SideDefs[sdlist->objnum].tex2, WAD_TEX_NAME);
+- 	  ObjectsNeeded (0);
+- 	  ChooseWallTexture (x0 + 84, subsubwin_y0,
+- 	    "Choose a wall texture", NumWTexture, WTexture, texname);
+  	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+  	  if (strlen (texname) > 0)
+  	  {
+  	    for (cur = sdlist; cur; cur = cur->next)
+  	      if (cur->objnum >= 0)
+! 		strncpy (SideDefs[cur->objnum].tex2, texname, WAD_TEX_NAME);
+  	    MadeChanges = 1;
+  	  }
+  	  break;
+  
+  	case 4:
+  	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
+--- 449,491 ----
+        for (n = 0; n < 7; n++)
+  	FreeMemory (menustr[n]);
+        subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
+        switch (val)
+        {
+  	case 1:
+! 	  textureref = & SideDefs[sdlist->objnum].tex3[0]; // middle
+! 	  goto set_texture;
+  	case 2:
+! 	  textureref = & SideDefs[sdlist->objnum].tex1[0]; // upper
+! 	  goto set_texture;
+! 	case 3:
+! 	  textureref = & SideDefs[sdlist->objnum].tex2[0];  // lower
+!         set_texture:
+! 	  strncpy (texname, textureref, WAD_TEX_NAME);
+  	  ObjectsNeeded (0);
+! 	  if( LineDefs[obj->objnum].type == 242 )
+  	  {
+! #ifdef PREDEF_COLORMAP	     
+! 	    // Boom Deep-water has COLORMAP in place of textures
+! 	    InputNameFromList (x0 + 84, y0, "Boom Colormap",
+! 			predef_colormap_size, predef_colormap_list, texname );
+! #else
+! 	    // Boom Deep-water has COLORMAP in place of textures
+! 	    InputNameFromList (x0 + 84, y0, "Boom Colormap",
+! 			NumBoomColormap, BoomColormap, texname );
+! #endif
+! 	  }else{
+!  	    ChooseWallTexture (x0 + 84, subsubwin_y0,
+! 	      "Choose a wall texture", NumWTexture, WTexture, texname);
+  	  }
+  	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+  	  if (strlen (texname) > 0)
+  	  {
+  	    for (cur = sdlist; cur; cur = cur->next)
+  	      if (cur->objnum >= 0)
+! 		strncpy (textureref, texname, WAD_TEX_NAME);
+  	    MadeChanges = 1;
+  	  }
+  	  break;
+  
+  	case 4:
+  	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
+Only in ../src/: l_prop.cc~
+Only in ../src/: l_prop.test.cc
+diff -C6 ../orig/levels.cc ../src/levels.cc
+*** ../orig/levels.cc	Thu Jul  9 17:17:59 2009
+--- ../src/levels.cc	Sat Sep 12 20:58:12 2009
+***************
+*** 1781,1792 ****
+--- 1781,1873 ----
+  {
+  NumFTexture = 0;
+  FreeMemory (flat_list);
+  flat_list = 0;
+  }
+  
++ /*
++    read the colormap names
++ */
++ 
++ int NumBoomColormap = 0;
++ char ** BoomColormap = NULL;		/* array of colormap names */
++ 
++ void ReadBoomColormapNames ()
++ {
++ MDirPtr dir = MasterDir;
++ int n;
++ 
++ verbmsg ("Reading colormap names\n");
++ NumBoomColormap = 2;
++ BoomColormap = (char **) GetMemory ( NumBoomColormap * sizeof (char *));
++ BoomColormap[0] = (char *) GetMemory (WAD_TEX_NAME + 1);
++ BoomColormap[1] = (char *) GetMemory (WAD_TEX_NAME + 1);
++ strcpy (BoomColormap[0], "-");	// default
++ strcpy (BoomColormap[1], "WATERMAP");	// Boom predefined
++ 
++ while ( dir = FindMasterDir (dir, "C_START") )
++  {
++    MDirPtr dir2;
++    // count the names for allocate of array
++    dir = dir->next;
++    dir2 = dir;	// to re-read the list of names
++    for (n = 0; dir ; dir = dir->next)
++    {
++ //      verbmsg (" %s", dir->dir.name );
++       // check for end of section
++       if ( y_strnicmp (dir->dir.name, "C_END", WAD_NAME) == 0 )  break;
++       // check size
++       if (dir->dir.size != (34*256))  // colormap is a set 34 palette maps
++       {
++ 	 warn ("colormap \"%.*s\" has weird size %lu."
++ 	     " Should be 8704 instead.\n",
++ 	       WAD_NAME, dir->dir.name, (unsigned long) dir->dir.size);
++       }
++       n++;
++    }
++    
++    if( n == 0 ) return;  // no Boom colormaps
++ 
++    verbmsg (" Append BoomColormaps %d\n", n);
++    // re-read saving the actual names from master dir
++    BoomColormap = (char **) ResizeMemory (BoomColormap,
++ 	 (NumBoomColormap + n) * sizeof (char *));
++    for (size_t m = NumBoomColormap; m < NumBoomColormap + n; m++)
++    {
++ //      verbmsg (" %s", dir2->dir.name );
++       BoomColormap[m] = (char *) GetMemory (WAD_TEX_NAME + 1);
++       strncpy( BoomColormap[m], dir2->dir.name, WAD_TEX_NAME+1 );
++       BoomColormap[m][WAD_TEX_NAME] = '\0';
++       dir2 = dir2->next;
++    }
++    NumBoomColormap += n;
++  }
++ // verbmsg( "\n" );
++ 
++ // Forced to sort this list because InputNameFromList requires it.
++ qsort (BoomColormap, NumBoomColormap, sizeof *BoomColormap, SortTextures);
++ 
++ }
++ 
++ 
++ /*
++    forget the Boom colormap names
++ */
++ 
++ void ForgetBoomColormaps ()
++ {
++ int n;
++ 
++ /* forget all names */
++ for (n = 0; n < NumBoomColormap; n++)
++    FreeMemory (BoomColormap[n]);
++    
++ NumBoomColormap = 0;
++ FreeMemory ( BoomColormap );
++ }
++ 
+  
+  /*
+   *	update_level_bounds - update Map{Min,Max}{X,Y}
+   */
+  void update_level_bounds ()
+  {
+***************
+*** 1806,1811 ****
+--- 1887,1893 ----
+        MapMinY = y;
+     if (y > MapMaxY)
+        MapMaxY = y;
+     }
+  }
+  
++ 
+Only in ../src/: levels.cc~
+diff -C6 ../orig/levels.h ../src/levels.h
+*** ../orig/levels.h	Thu Jul  9 17:17:59 2009
+--- ../src/levels.h	Sat Sep 12 23:34:35 2009
+***************
+*** 40,51 ****
+--- 40,55 ----
+    char            name[WAD_NAME + 1];	// Name of flat
+    const Wad_file *wadfile;		// Pointer on wad where flat comes from
+    i32             offset;		// Offset of flat in wad
+  } flat_list_entry_t;			// Length is implicit (always 4096)
+  extern flat_list_entry_t *flat_list;	// List of all flats in the directory
+  
++ // [WDJ]
++ extern int NumBoomColormap;
++ extern char **BoomColormap;	/* array of colormap names */
++ 
+  extern int   MapMaxX;		/* maximum X value of map */
+  extern int   MapMaxY;		/* maximum Y value of map */
+  extern int   MapMinX;		/* minimum X value of map */
+  extern int   MapMinY;		/* minimum Y value of map */
+  extern bool  MadeChanges;	/* made changes? */
+  extern bool  MadeMapChanges;	/* made changes that need rebuilding? */
+Only in ../src/: levels.h~
+diff -C6 ../orig/r_render.cc ../src/r_render.cc
+*** ../orig/r_render.cc	Thu Jul  9 17:14:57 2009
+--- ../src/r_render.cc	Sat Sep 12 19:37:50 2009
+***************
+*** 205,216 ****
+--- 205,218 ----
+        if (col >= 0x60)
+           col += 0x70;
+        }
+  };
+  
+  
++ static const double IZ_EPSILON = 0.000001;
++ 
+  struct DrawWall
+  {
+  public:
+     typedef std::vector<struct DrawWall *> vec_t;
+  
+     Thing *th;
+***************
+*** 249,261 ****
+     
+     DrawSurf ceil;
+     DrawSurf upper;
+     DrawSurf lower;
+     DrawSurf floor;
+  
+-    static const double IZ_EPSILON = 0.000001;
+  
+     /* PREDICATES */
+  
+     struct MidDistCmp
+        {
+        inline bool operator() (const DrawWall * A, const DrawWall * B) const
+--- 251,262 ----
+***************
+*** 402,413 ****
+--- 403,416 ----
+              }
+           }
+        }
+  };
+  
+  
++ static const double Y_SLOPE = 1.70;
++ 
+  struct RendInfo
+  {
+  public:
+     DrawWall::vec_t walls;
+     // complete set of walls/sprites to draw.
+  
+***************
+*** 418,430 ****
+     std::vector<double> depth_x;  
+     // inverse distances over X range, 0 when empty.
+  
+     int open_y1;
+     int open_y2;
+  
+-    static const double Y_SLOPE = 1.70;
+  
+     static void DeleteWall (DrawWall *P)
+        {
+        delete P;
+        }
+  
+--- 421,432 ----
+Only in ../src/: r_render.cc~
+diff -C6 ../orig/s_merge.cc ../src/s_merge.cc
+*** ../orig/s_merge.cc	Fri Mar 28 06:37:32 2003
+--- ../src/s_merge.cc	Thu Sep 10 21:51:47 2009
+***************
+*** 78,89 ****
+--- 78,94 ----
+  {
+  SelPtr cur, slist;
+  int    sd1, sd2;
+  int    s1, s2;
+  char   msg[80];
+  
++ /* [WDJ] Fix
++  1. When linedef has same sector on both sides it should not delete
++     whole sector.
++  2. Makes mistakes in sector changes.
++ */
+  /* first, do the tests for all LineDefs */
+  for (cur = *ldlist; cur; cur = cur->next)
+     {
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[cur->objnum].sidedef1;
+     sd2 = LineDefs[cur->objnum].sidedef2;
+***************
+*** 112,128 ****
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[cur->objnum].sidedef1;
+     sd2 = LineDefs[cur->objnum].sidedef2;
+     ObjectsNeeded (OBJ_SIDEDEFS, 0);
+     s1 = SideDefs[sd1].sector;
+     s2 = SideDefs[sd2].sector;
+!    slist = NULL;
+!    SelectObject (&slist, s2);
+!    SelectObject (&slist, s1);
+!    MergeSectors (&slist);
+!    ForgetSelection (&slist);
+     }
+  DeleteObjects (OBJ_LINEDEFS, ldlist);
+  }
+  
+  
+  
+--- 117,136 ----
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[cur->objnum].sidedef1;
+     sd2 = LineDefs[cur->objnum].sidedef2;
+     ObjectsNeeded (OBJ_SIDEDEFS, 0);
+     s1 = SideDefs[sd1].sector;
+     s2 = SideDefs[sd2].sector;
+!    if ( s1 != s2 )      // [WDJ] Not when both sidedefs are the same sector.
+!     {
+!       slist = NULL;
+!       SelectObject (&slist, s2);
+!       SelectObject (&slist, s1);
+!       MergeSectors (&slist);
+!       ForgetSelection (&slist);
+!     }
+     }
+  DeleteObjects (OBJ_LINEDEFS, ldlist);
+  }
+  
+  
+  
+Only in ../src/: s_merge.cc~
+Only in ../src/: version.cc
+diff -C6 ../orig/wads2.cc ../src/wads2.cc
+*** ../orig/wads2.cc	Fri Mar 28 06:37:32 2003
+--- ../src/wads2.cc	Sat Sep 12 00:59:54 2009
+***************
+*** 199,210 ****
+--- 199,219 ----
+  	 {
+  	 state      = 's';
+  	 entry_type = "group of sprites";
+  	 replaces   = 0;
+           nitems     = 0;
+  	 }
++       // Boom puts colormaps between C_START and C_END.
++       // All names between those markers are assumed to be colormaps.
++       else if (! strncmp (entryname, "C_START", WAD_NAME))
++ 	 {
++ 	 state      = 'c';
++ 	 entry_type = "colormap list";
++ 	 replaces   = 0;
++          nitems     = 0;
++ 	 }
+        else
+  	 {
+  	 mdir = FindMasterDir (MasterDir, entryname);
+  	 replaces = mdir != NULL;
+  	 /* if it is a level, do the same thing for the next 10 entries too */
+  	 if (levelname2levelno (entryname))
+***************
+*** 295,307 ****
+        // toward the number of sprites in the group.
+        else if (! (*entryname == 'S'
+                    && (! strncmp (entryname + 2, "_START", 6)
+                        || ! strcmp (entryname + 2, "_END"))))
+           nitems++;
+        }
+!      
+     /* if this entry is not in the master directory, then add it */
+     if (!replaces)
+        {
+        mdir = MasterDir;
+        while (mdir->next)
+  	 mdir = mdir->next;
+--- 304,330 ----
+        // toward the number of sprites in the group.
+        else if (! (*entryname == 'S'
+                    && (! strncmp (entryname + 2, "_START", 6)
+                        || ! strcmp (entryname + 2, "_END"))))
+           nitems++;
+        }
+! 
+!    // C_END marks the end of a colormap list.
+!    else if (state == 'c')
+!       {
+!       if (! strncmp (entryname, "C_END", WAD_NAME) )
+!          {
+! 	 state = 0;
+!          verbmsg ("/%.*s (%d colormaps)", WAD_NAME, entryname, nitems);
+!          }
+!       // Of course, START and END don't count toward the number of colormaps.
+!       else{
+! 	 if ( strncmp (entryname, "C_END", 8) != 0 )   nitems++;
+!        }
+!       }
+!       
+     /* if this entry is not in the master directory, then add it */
+     if (!replaces)
+        {
+        mdir = MasterDir;
+        while (mdir->next)
+  	 mdir = mdir->next;
+Only in ../src/: wads2.cc~
+diff -C6 ../orig/yadex.cc ../src/yadex.cc
+*** ../orig/yadex.cc	Sun Dec 14 18:47:10 2003
+--- ../src/yadex.cc	Sat Sep 12 18:43:39 2009
+***************
+*** 546,557 ****
+--- 546,558 ----
+  #endif
+  
+  // Clean up things and free swap space
+  ForgetLevelData ();
+  ForgetWTextureNames ();
+  ForgetFTextureNames ();
++ ForgetBoomColormaps ();
+  CloseWadFiles ();
+  exit (2);
+  }
+  
+  
+  /*
+Only in ../src/: yadex.cc~
+diff -C6 ../orig/yadex.h ../src/yadex.h
+*** ../orig/yadex.h	Thu Jul  9 17:10:59 2009
+--- ../src/yadex.h	Sat Sep 12 20:28:43 2009
+***************
+*** 28,39 ****
+--- 28,51 ----
+  */
+  
+  
+  #ifndef YH_YADEX  /* DO NOT INSERT ANYTHING BEFORE THIS LINE */
+  #define YH_YADEX
+  
++ // User defines
++ // Use the stdint defines that know the target machine best.
++ #define USE_STDINT	1
++ 
++ // Use the keyboard assignments for laptops without all function keys
++ // #define SMALL_LAPTOP_KEYBOARD
++ 
++ // Use menus with char selection instead of numeric selection
++ #define MENU_BY_CHAR	1
++ 
++ 
++ 
+  
+  #include "config.h"
+  
+  
+  // Sanity checks
+  #if ! (defined Y_BGI ^ defined Y_X11)
+***************
+*** 87,111 ****
+  /*
+   *	Platform-independant types and formats.
+   */
+  typedef unsigned char  u8;
+  typedef signed   char  i8;
+  
+  typedef unsigned short u16;
+  #define F_U16_D "hu"
+  #define F_U16_H "hX"
+  
+- typedef signed   short i16;
+  #define F_I16_D "hd"
+  #define F_I16_H "hX"
+  
+- typedef unsigned long  u32;
+  #define F_U32_D "lu"
+  #define F_U32_H "lX"
+  
+- typedef signed   long  i32;
+  #define F_I32_D "ld"
+  #define F_I32_H "lX"
+  
+  
+  /*
+   *	Platform definitions
+--- 99,132 ----
+  /*
+   *	Platform-independant types and formats.
+   */
+  typedef unsigned char  u8;
+  typedef signed   char  i8;
+  
++ #ifdef USE_STDINT
++ #include <stdint.h>
++ typedef uint16_t  u16;
++ typedef int16_t   i16;
++ typedef uint32_t  u32;
++ typedef int32_t   i32;
++ #else
++ // standard guess, which will eventually fail
+  typedef unsigned short u16;
++ typedef signed   short i16;
++ typedef unsigned long  u32;
++ typedef signed   long  i32;
++ #endif
+  #define F_U16_D "hu"
+  #define F_U16_H "hX"
+  
+  #define F_I16_D "hd"
+  #define F_I16_H "hX"
+  
+  #define F_U32_D "lu"
+  #define F_U32_H "lX"
+  
+  #define F_I32_D "ld"
+  #define F_I32_H "lX"
+  
+  
+  /*
+   *	Platform definitions
+***************
+*** 490,501 ****
+--- 511,524 ----
+  int SaveLevelData (const char *, const char *level_name); /* SWAP! */
+  void ReadWTextureNames (void);
+  void ForgetFTextureNames (void);
+  int is_flat_name_in_list (const char *name);
+  void ReadFTextureNames (void);
+  void ForgetWTextureNames (void);
++ void ReadBoomColormapNames (void);	// [WDJ]
++ void ForgetBoomColormaps (void);	// [WDJ]
+  
+  // mouse.cc (this module is entirely DOS-specific)
+  #if defined Y_BGI
+  void CheckMouseDriver (void);
+  void ShowMousePointer (void);
+  void HideMousePointer (void);
+Only in ../src/: yadex.h~

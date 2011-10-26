@@ -1,0 +1,102 @@
+*** Patches readme
+This assumes that you have previously compiled and installed yadex.
+If you have not, you should do that first to test that independently.
+Read the README for compile and install.
+
+** Apply the patches contained
+  patch -l -N -d <src-dir>  <src-patches>
+* with backup
+  patch -b -l -V -d <src_dir>
+* example
+  patch -l -N -d /usr/local/src/yadex-1.7.0/src  patch_dir/*.diff
+  
+* If you get a "HUNK #n failed" message then you will have to
+investigate the .rej file that is created.
+  cd ../src
+  ls *.rej
+  less *.rej
+
+Some patches contain changes that may have already been made in your
+copy.
+
+* If you get .rej files, then open it with an editor and copy it into
+the target file by hand.  There should be enough context to see the
+difference and what the patch is trying to accomplish.
+
+You likely have another patch applied that is confusing patch.
+
+The first three lines of the patch give the command used, the source
+file, and the dest file.
+
+If it has:
+  --- yadex-1.7.0/src/orig/things.cc   1999....
+  +++ yadex-1.7.0/src/things.cc        2009....
+It is a normal diff.
+Notice that the file name with the +++ and the new date is the dest,
+so you need to edit yadex-1.7.0/src/things.cc.
+Each patch within the diff is marked by a line giving the line number
+range.
+  @@ -342,6 +342,7 @@
+Interpretation
+  <space>	Context line, no change
+  -		Remove this line
+  +		Add this line
+
+If it has:
+  *** ../orig/things.cc		Thu Jul  9 17:17:59 2009
+  --- ../src/things.cc		Sat Aug 29 02:48:16 2009
+It is a context diff.
+Notice that the file name with the --- and the new date is the dest,
+so you need to edit yadex-1.7.0/src/things.cc.
+Each patch within the diff has before and after sections, with
+surrounding context, and is marked by syntax that gives the line number
+range.
+  *** 304,321 ****
+  	<source lines>
+  --- 304,326 ----
+	<dest lines>	
+
+
+Each line of the patch has a leading character that indicates what the
+patch is doing to that line.  This lead character must be removed when
+you copy a patch line to the dest file.
+Interpretation:
+  <space>	context line, do not change
+  +		add this line
+  - 		delete this line
+  !		line changed
+  		- Original is in the source line listing (*** line).
+		- Desired result is in the dest listing, after the --- line.
+
+In many cases the dest lines can simply be copied and pasted into the
+target file, with the first char deleted from each.
+
+
+** Select options
+
+Edit the file yadex.h
+Select an option by uncommenting the define.
+
+#define USE_STDINT
+ // Use the stdint definitions that customize the 16 and 32 defines
+    to the machine.  This is safest for new 64 bit machines where the old
+    assumptions fail.
+
+#define SMALL_LAPTOP_KEYBOARD
+  // Use alternative key assignments for the INSERT and DELETE keys.
+  // Some laptops do not have these keys.
+
+  
+
+** Compile and install
+
+Change to the yadex directory
+  cd /usr/local/src/yadex-1.7.0
+Compile
+  make
+If you get errors then look for .rej files and fix the patch.
+
+Install
+  make install
+
+  

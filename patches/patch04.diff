@@ -1,0 +1,2757 @@
+diff -C8 orig/checks.cc src/checks.cc
+*** orig/checks.cc	Sun Dec 14 18:49:08 2003
+--- src/checks.cc	Sat Oct 24 00:01:18 2009
+***************
+*** 595,610 ****
+--- 595,612 ----
+  
+  void CheckTextures () /* SWAP! */
+  {
+  int  n;
+  int  sd1, sd2;
+  int  s1, s2;
+  char msg1[80], msg2[80];
+  bool first_time = true;
++ bool spec_sidedef1;	// [WDJ]
++ int  spec_linedef_type; // [WDJ]
+  
+  CheckingObjects ();
+  LogMessage ("\nVerifying textures...\n");
+  ObjectsNeeded (OBJ_SECTORS, 0);
+  for (n = 0; n < NumSectors; n++)
+     {
+     if (strcmp (Sectors[n].ceilt, "-") == 0
+       || strcmp (Sectors[n].ceilt, "") == 0
+***************
+*** 648,673 ****
+  #endif
+     }
+  
+  for (n = 0; n < NumLineDefs; n++)
+     {
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[n].sidedef1;
+     sd2 = LineDefs[n].sidedef2;
+     ObjectsNeeded (OBJ_SIDEDEFS, OBJ_SECTORS, 0);
+     if (sd1 >= 0)
+        s1 = SideDefs[sd1].sector;
+     else
+        s1 = OBJ_NO_NONE;
+     if (sd2 >= 0)
+        s2 = SideDefs[sd2].sector;
+     else
+        s2 = OBJ_NO_NONE;
+!    if (is_obj (s1) && ! is_obj (s2))
+        {
+        if (SideDefs[sd1].tex3[0] == '-' && SideDefs[sd1].tex3[1] == '\0')
+  	 {
+  	 sprintf (msg1, "Error in one-sided linedef #%d:"
+  	   " sidedef #%d has no middle texture", n, sd1);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_middle_texture);
+  	 if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+--- 650,717 ----
+  #endif
+     }
+  
+  for (n = 0; n < NumLineDefs; n++)
+     {
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[n].sidedef1;
+     sd2 = LineDefs[n].sidedef2;
++    // handle special linedefs
++    spec_linedef_type = LineDefs[n].type;
++    switch( LineDefs[n].type ){
++    // sidedef1 is control sector special texture usage, tagged propery transfer
++     case 260:	// Boom transparency
++       // when tag==0, sidedef1 middle texture can optionally be a LUMP
++       // name that has a transparency map, size=64K.
++     case 242:	// Boom Deep water
++       // sidedef1 textures can be textures or colormaps
++     case 280:	// Legacy water
++       // sidedef1 textures can be textures or colormaps
++     case 282:	// Legacy generate colormap
++       // sidedef1 textures can be textures or # settings to generate colormap
++     case 300:	// Legacy 3d solid translucent floor
++       // sidedef1, upper texture encodes for alpha, #nnn
++     case 301:	// Legacy 3d translucent water
++       // sidedef1, upper texture encodes for alpha, #nnn
++       spec_sidedef1 = 1;
++       break;
++    // Texture replacements   
++     case 283:	// Legacy fog sheet
++       // replaces middle texture with fixed fog texture
++     case 284:	// Legacy sheet, brighten +2, green
++     case 285:	// Legacy sheet, brighten +1, green
++     case 286:	// Legacy sheet, darken
++     case 287:	// Legacy sheet, brighten
++     case 288:	// Legacy sheet, selective transparency
++       
++    // sidedef1 is control sector, tagged propery transfer
++     case 281:	// Legacy 3d floor with shadow
++     case 289:	// Legacy 3d floor without shadow
++     case 304:	// Legacy 3d opaque water
++     case 302:	// Legacy 3d fog
++     case 303:	// Legacy 3d ceiling light
++     case 305:	// Legacy 3d double light
++     case 306:	// Legacy 3d invisible floor
++       spec_sidedef1 = 0;	// nothing better to do, at this time !
++       break;
++     default:
++       spec_sidedef1 = 0;
++       break;
++    }
+     ObjectsNeeded (OBJ_SIDEDEFS, OBJ_SECTORS, 0);
+     if (sd1 >= 0)
+        s1 = SideDefs[sd1].sector;
+     else
+        s1 = OBJ_NO_NONE;
+     if (sd2 >= 0)
+        s2 = SideDefs[sd2].sector;
+     else
+        s2 = OBJ_NO_NONE;
+!    if (is_obj (s1) && ! is_obj (s2) && !spec_sidedef1)
+        {
+        if (SideDefs[sd1].tex3[0] == '-' && SideDefs[sd1].tex3[1] == '\0')
+  	 {
+  	 sprintf (msg1, "Error in one-sided linedef #%d:"
+  	   " sidedef #%d has no middle texture", n, sd1);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_middle_texture);
+  	 if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+***************
+*** 675,691 ****
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd1].tex3, default_middle_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!    if (is_obj (s1) && is_obj (s2) && Sectors[s1].ceilh > Sectors[s2].ceilh)
+        {
+        if (SideDefs[sd1].tex1[0] == '-' && SideDefs[sd1].tex1[1] == '\0'
+  	  && (! is_sky (Sectors[s1].ceilt) || ! is_sky (Sectors[s2].ceilt)))
+  	 {
+  	 sprintf (msg1, "Error in first sidedef of linedef #%d:"
+  	   " sidedef #%d has no upper texture", n, sd1);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_upper_texture);
+--- 719,738 ----
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd1].tex3, default_middle_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!    if (is_obj (s1) && is_obj (s2) )
+!     {
+!     // [WDJ] do not check sidedef1 of special linedef
+!     if (Sectors[s1].ceilh > Sectors[s2].ceilh  && !spec_sidedef1)
+        {
+        if (SideDefs[sd1].tex1[0] == '-' && SideDefs[sd1].tex1[1] == '\0'
+  	  && (! is_sky (Sectors[s1].ceilt) || ! is_sky (Sectors[s2].ceilt)))
+  	 {
+  	 sprintf (msg1, "Error in first sidedef of linedef #%d:"
+  	   " sidedef #%d has no upper texture", n, sd1);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_upper_texture);
+***************
+*** 694,710 ****
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd1].tex1, default_upper_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!    if (is_obj (s1) && is_obj (s2) && Sectors[s1].floorh < Sectors[s2].floorh)
+        {
+        if (SideDefs[sd1].tex2[0] == '-' && SideDefs[sd1].tex2[1] == '\0')
+  	 {
+  	 sprintf (msg1, "Error in first sidedef of linedef #%d:"
+  	   " sidedef #%d has no lower texture", n, sd1);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_lower_texture);
+  	 if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+--- 741,757 ----
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd1].tex1, default_upper_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!     if (Sectors[s1].floorh < Sectors[s2].floorh && !spec_sidedef1)
+        {
+        if (SideDefs[sd1].tex2[0] == '-' && SideDefs[sd1].tex2[1] == '\0')
+  	 {
+  	 sprintf (msg1, "Error in first sidedef of linedef #%d:"
+  	   " sidedef #%d has no lower texture", n, sd1);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_lower_texture);
+  	 if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+***************
+*** 712,728 ****
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd1].tex2, default_lower_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!    if (is_obj (s1) && is_obj (s2) && Sectors[s2].ceilh > Sectors[s1].ceilh)
+        {
+        if (SideDefs[sd2].tex1[0] == '-' && SideDefs[sd2].tex1[1] == '\0'
+  	  && (! is_sky (Sectors[s1].ceilt) || ! is_sky (Sectors[s2].ceilt)))
+  	 {
+  	 sprintf (msg1, "Error in second sidedef of linedef #%d:"
+  	   " sidedef #%d has no upper texture", n, sd2);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_upper_texture);
+--- 759,775 ----
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd1].tex2, default_lower_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!     if (Sectors[s2].ceilh > Sectors[s1].ceilh)
+        {
+        if (SideDefs[sd2].tex1[0] == '-' && SideDefs[sd2].tex1[1] == '\0'
+  	  && (! is_sky (Sectors[s1].ceilt) || ! is_sky (Sectors[s2].ceilt)))
+  	 {
+  	 sprintf (msg1, "Error in second sidedef of linedef #%d:"
+  	   " sidedef #%d has no upper texture", n, sd2);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_upper_texture);
+***************
+*** 731,747 ****
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd2].tex1, default_upper_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!    if (is_obj (s1) && is_obj (s2) && Sectors[s2].floorh < Sectors[s1].floorh)
+        {
+        if (SideDefs[sd2].tex2[0] == '-' && SideDefs[sd2].tex2[1] == '\0')
+  	 {
+  	 sprintf (msg1, "Error in second sidedef of linedef #%d:"
+  	   " sidedef #%d has no lower texture", n, sd2);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_lower_texture);
+  	 if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+--- 778,794 ----
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd2].tex1, default_upper_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
+!     if (Sectors[s2].floorh < Sectors[s1].floorh)
+        {
+        if (SideDefs[sd2].tex2[0] == '-' && SideDefs[sd2].tex2[1] == '\0')
+  	 {
+  	 sprintf (msg1, "Error in second sidedef of linedef #%d:"
+  	   " sidedef #%d has no lower texture", n, sd2);
+  	 sprintf (msg2, "Do you want to set the texture to \"%s\""
+  	   " and continue?", default_lower_texture);
+  	 if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+***************
+*** 749,764 ****
+--- 796,812 ----
+  	    GoToObject (Objid (OBJ_LINEDEFS, n));
+  	    return;
+  	    }
+  	 strncpy (SideDefs[sd2].tex2, default_lower_texture, WAD_TEX_NAME);
+           MadeChanges = 1;
+  	 CheckingObjects ();
+  	 }
+        }
++     }
+     }
+  }
+  
+  
+  /*
+     check if a texture name matches one of the elements of a list
+  */
+  
+***************
+*** 767,792 ****
+--- 815,913 ----
+  int n;
+  
+  for (n = 0; n < numelems; n++)
+     if (! y_strnicmp (name, list[n], WAD_TEX_NAME))
+        return true;
+  return false;
+  }
+  
++ // [WDJ] 10/14/2009
++ // Check if sidedef is used by special or normal linedef
++ // bits: 0x02= Boom deep water, 0x01= normal
++ int Is_special_normal_sidedef ( int sidedef_num )
++ {
++    int special_normal = 0;	// if not found then returns 0
++    // Check all the linedef
++    for (int n = 0; n < NumLineDefs; n++) {
++       ObjectsNeeded (OBJ_LINEDEFS, 0);
++       if(LineDefs[n].sidedef1 == sidedef_num)
++       {	// this linedef uses sidedef1
++ 	 // Boom Deep water uses the sidedef1 for colormaps
++ 	 if( LineDefs[n].type == 242 ) {
++ 	    special_normal |= 0x02;	// Boom deep water use
++ 	 }else{
++ 	    special_normal |= 0x01;	// must be one of the valid uses
++ 	 }
++ 	 break;
++       }
++       if(LineDefs[n].sidedef2 == sidedef_num)
++       {
++ 	 // all uses in sidedef2 must be one of the valid uses
++ 	 special_normal |= 0x01;
++       }
++    }
++    ObjectsNeeded (OBJ_SIDEDEFS, 0);
++    return special_normal;
++ }
++ 
++ 
++ // [WDJ] 10/14/2009
++ // Check linedef when texture is not a wall texture
++ // Check for Deep water colormap
++ bool Check_texture_not_wall ( int sidedef_num,
++ 			      char * texture_name, char * where_string,
++ 			      bool &first_time )
++ {
++    char msg1[80], msg2[80];
++    // [WDJ] check special linedef use
++    int snflag = Is_special_normal_sidedef ( sidedef_num );
++    // ignore the unused
++    switch( snflag ){
++     case 0x01:	// normal only
++       sprintf (msg1, "Invalid %s texture in sidedef #%d",
++ 	       where_string, sidedef_num);
++       break;
++     case 0x02:  // Only a special (Deep water colormap)
++       // check against Boom colormap names
++       if( IsTextureNameInList (texture_name,
++ 				BoomColormap, NumBoomColormap) ) goto done;
++       // not a colormap name either
++       sprintf (msg1, "Invalid %s colormap in sidedef #%d",
++ 	       where_string, sidedef_num);
++       break;
++     case 0x03:
++       sprintf (msg1, "Invalid %s texture, sidedef #%d, multiple use conflict",
++ 	       where_string, sidedef_num);
++     default:
++       goto done;
++    }
++    sprintf (msg2, "The name \"%.*s\" is not a wall texture",
++ 	    (int) WAD_TEX_NAME, texture_name);
++    
++    if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
++    {
++       GoToObject (Objid (OBJ_SIDEDEFS, sidedef_num));
++       return 1;
++    }
++    CheckingObjects ();		// grinding msg
++ done:   
++    return 0;
++ }
+  
+  /*
+     check for invalid texture names
+  */
+  
+  void CheckTextureNames () /* SWAP! */
+  {
+  int  n;
+  char msg1[80], msg2[80];
+  bool first_time = true;
++ bool exit_flag;
+  
+  CheckingObjects ();
+  LogMessage ("\nVerifying texture names...\n");
+  
+  // AYM 2000-07-24: could someone explain this one ?
+  if (! FindMasterDir (MasterDir, "F2_START"))
+     NumThings--;
+  
+***************
+*** 818,868 ****
+        CheckingObjects ();
+        }
+     }
+  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+  for (n = 0; n < NumSideDefs; n++)
+     {
+     if (! IsTextureNameInList (SideDefs[n].tex1, WTexture, NumWTexture))
+        {
+!       sprintf (msg1, "Invalid upper texture in sidedef #%d", n);
+!       sprintf (msg2, "The name \"%.*s\" is not a wall texture",
+! 	(int) WAD_TEX_NAME, SideDefs[n].tex1);
+!       if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+! 	 {
+! 	 GoToObject (Objid (OBJ_SIDEDEFS, n));
+! 	 return;
+! 	 }
+!       CheckingObjects ();
+        }
+     if (! IsTextureNameInList (SideDefs[n].tex2, WTexture, NumWTexture))
+        {
+!       sprintf (msg1, "Invalid lower texture in sidedef #%d", n);
+!       sprintf (msg2, "The name \"%.*s\" is not a wall texture",
+! 	(int) WAD_TEX_NAME, SideDefs[n].tex2);
+!       if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+! 	 {
+! 	 GoToObject (Objid (OBJ_SIDEDEFS, n));
+! 	 return;
+! 	 }
+!       CheckingObjects ();
+        }
+     if (! IsTextureNameInList (SideDefs[n].tex3, WTexture, NumWTexture))
+        {
+!       sprintf (msg1, "Invalid middle texture in sidedef #%d", n);
+!       sprintf (msg2, "The name \"%.*s\" is not a wall texture",
+! 	(int) WAD_TEX_NAME, SideDefs[n].tex3);
+!       if (CheckFailed (-1, -1, msg1, msg2, 0, first_time))
+! 	 {
+! 	 GoToObject (Objid (OBJ_SIDEDEFS, n));
+! 	 return;
+! 	 }
+!       CheckingObjects ();
+        }
+     }
+  }
+  
+  
+  /*
+     check for players starting points
+  */
+  
+  bool CheckStartingPos () /* SWAP! */
+--- 939,970 ----
+        CheckingObjects ();
+        }
+     }
+  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+  for (n = 0; n < NumSideDefs; n++)
+     {
+     if (! IsTextureNameInList (SideDefs[n].tex1, WTexture, NumWTexture))
+        {
+!       exit_flag = Check_texture_not_wall( n, SideDefs[n].tex1, "upper", first_time );
+!       if( exit_flag ) goto done;
+        }
+     if (! IsTextureNameInList (SideDefs[n].tex2, WTexture, NumWTexture))
+        {
+!       exit_flag = Check_texture_not_wall( n, SideDefs[n].tex2, "lower", first_time );
+!       if( exit_flag ) goto done;
+        }
+     if (! IsTextureNameInList (SideDefs[n].tex3, WTexture, NumWTexture))
+        {
+!       exit_flag = Check_texture_not_wall( n, SideDefs[n].tex3, "middle", first_time );
+!       if( exit_flag ) goto done;
+        }
+     }
++ done:
++    return;
+  }
+  
+  
+  /*
+     check for players starting points
+  */
+  
+  bool CheckStartingPos () /* SWAP! */
+Only in src/: config.cc
+Only in src/: config.h
+Only in src/: credits.cc
+diff -C8 orig/editlev.cc src/editlev.cc
+*** orig/editlev.cc	Fri Mar 28 06:37:32 2003
+--- src/editlev.cc	Sat Sep 12 20:28:13 2009
+***************
+*** 146,161 ****
+--- 146,162 ----
+  /*
+     the driving program
+  */
+  
+  void EditLevel (const char *levelname, bool newlevel)
+  {
+  ReadWTextureNames ();
+  ReadFTextureNames ();
++ ReadBoomColormapNames ();	// [WDJ]
+  patch_dir.refresh (MasterDir);
+  if (InitGfx ())
+     return;
+  /* Call init_input_status() as shortly as possible after the creation
+     of the window to minimize the risk of calling get_input_status(),
+     get_key(), have_key(), etc. with <is> still uninitialized. */
+  init_input_status ();
+  init_event ();
+***************
+*** 244,259 ****
+--- 245,261 ----
+     printf ("Please register the game"
+        " if you want to be able to save your changes.\n");
+  
+  ForgetLevelData ();
+  /* forget the level pointer */
+  Level = 0;
+  ForgetWTextureNames ();
+  ForgetFTextureNames ();
++ ForgetBoomColormaps ();		// [WDJ]
+  }
+  
+  
+  /*
+   *	WriteYadexLog - Keep track of time spent editing that wad file
+   *	FIXME should be in a separate module
+   */
+  static void WriteYadexLog (const char *file, const char *level, time_t *t0, time_t *t1)
+diff -C8 orig/editloop.cc src/editloop.cc
+*** orig/editloop.cc	Thu Jul  9 17:17:59 2009
+--- src/editloop.cc	Sat Aug 29 02:48:16 2009
+***************
+*** 304,321 ****
+--- 304,326 ----
+  // "~Print",      YK_,   MIF_SACTIVE, false, 0,
+     "~Quit",       'q',   0,
+     NULL);
+  
+  
+  if (yg_level_format == YGLF_HEXEN)
+     e.mb_menu[MBM_EDIT] = new Menu (NULL,
+       "~Copy object(s)",          'o',    0,
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       "~Add object",              'I', 0,
++       "~Delete object(s)",        '\b', 0,
++ #else
+        "~Add object",              YK_INS, 0,
+        "~Delete object(s)",        YK_DEL, 0,
++ #endif
+        "~Exchange object numbers", 24,     0,
+        "~Preferences...",          YK_F5,  0,
+        "~Snap to grid",            'y',    MIF_VTICK, &e.grid_snap,		     0,
+        "~Lock grid step",          'z',    MIF_VTICK, &e.grid_step_locked,	     0,
+        "Load ~BEHAVIOR lump",      'b',    0,
+        NULL);
+  else
+     e.mb_menu[MBM_EDIT] = new Menu (NULL,
+***************
+*** 1357,1373 ****
+--- 1362,1382 ----
+           else if (e.obj_type == OBJ_THINGS)
+              {
+              menu_thing_flags->set_title ("Clear thing flag");
+              e.modpopup->set (menu_thing_flags, 0);
+              }
+           }
+  
+        // [F8]: pop up the "Misc. operations" menu
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       else if (is.key == 'M'
++ #else
+        else if (is.key == YK_F8
++ #endif
+           && e.menubar->highlighted () < 0)
+           {
+           e.modpopup->set (e.menubar->get_menu (MBI_MISC), 1);
+           }
+  
+        // [F9]: pop up the "Insert a standard object" menu
+        else if (is.key == YK_F9
+           && e.menubar->highlighted () < 0)
+***************
+*** 2068,2084 ****
+--- 2077,2097 ----
+           sector_slice (e.Selected->next->objnum, e.Selected->objnum);
+           ForgetSelection (&e.Selected);
+           RedrawMap = 1;
+           DragObject = false;
+           StretchSelBox = false;
+        }
+        
+        // [Del]: delete the current object
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       else if (is.key == '\b'	// backspace
++ #else
+        else if (is.key == YK_DEL
++ #endif
+           && (e.Selected || e.highlighted ())) /* 'Del' */
+  	 {
+  	 if (e.obj_type == OBJ_THINGS
+  	  || Expert
+  	  || Confirm (-1, -1,
+  		(e.Selected && e.Selected->next ?
+  		     "Do you really want to delete these objects?"
+  		   : "Do you really want to delete this object?"),
+***************
+*** 2096,2112 ****
+--- 2109,2129 ----
+           // deleted, HighlightObject is still called with a bad object#).
+           e.highlighted.nil ();
+  	 DragObject = false;
+  	 StretchSelBox = false;
+  	 RedrawMap = 1;
+  	 }
+  
+        // [Ins]: insert a new object
++ #ifdef SMALL_LAPTOP_KEYBOARD
++       else if (is.key == 'I' || is.key == YK_INS + YK_SHIFT) /* 'Ins' */
++ #else
+        else if (is.key == YK_INS || is.key == YK_INS + YK_SHIFT) /* 'Ins' */
++ #endif
+  	 {
+  	 SelPtr cur;
+           int prev_obj_type = e.obj_type;
+  
+  	 /* first special case: if several vertices are
+  	    selected, add new linedefs */
+  	 if (e.obj_type == OBJ_VERTICES
+  	    && e.Selected && e.Selected->next)
+diff -C8 orig/editobj.cc src/editobj.cc
+*** orig/editobj.cc	Thu Apr 24 15:32:39 2003
+--- src/editobj.cc	Sat Oct 31 06:39:41 2009
+***************
+*** 927,948 ****
+  	 ObjectsNeeded (OBJ_LINEDEFS, 0);
+  	 for (cur = *list; cur; cur = cur->next)
+  	    {
+  	    struct LineDef *l = LineDefs + cur->objnum;
+  	    l->sidedef2 = -1;  /* remove ref. to 2nd SD */
+  	    l->flags &= ~0x04; /* clear "2S" bit */
+  	    l->flags |= 0x01;  /* set "Im" bit */
+  
+  	    if (is_sidedef (l->sidedef1))
+  	       {
+! 	       struct SideDef *s = SideDefs + l->sidedef1;
+! 	       strcpy (s->tex1, "-");
+! 	       strcpy (s->tex2, "-");
+! 	       strcpy (s->tex3, default_middle_texture);
+  	       }
+  	    /* Don't delete the 2nd sidedef, it could be used
+                 by another linedef. And if it isn't, the next
+                 cross-references check will delete it anyway. */
+  	    }
+  	 }
+        // Sector -> Mirror horizontally
+        else if (objtype == OBJ_SECTORS)
+--- 927,964 ----
+  	 ObjectsNeeded (OBJ_LINEDEFS, 0);
+  	 for (cur = *list; cur; cur = cur->next)
+  	    {
+  	    struct LineDef *l = LineDefs + cur->objnum;
+  	    l->sidedef2 = -1;  /* remove ref. to 2nd SD */
+  	    l->flags &= ~0x04; /* clear "2S" bit */
+  	    l->flags |= 0x01;  /* set "Im" bit */
+  
++             // [WDJ] Have no idea why they trashed the good side, so don't.
+  	    if (is_sidedef (l->sidedef1))
+  	       {
+! 	       struct SideDef *s = & SideDefs[ l->sidedef1 ];
+! 	       if( strncmp( s->tex3, "-", WAD_TEX_NAME ) == 0 )
+! 		{
+! 		  // Middle texture is missing
+! 		  if( strncmp( s->tex2, "-", WAD_TEX_NAME) != 0 )
+! 		   {
+! 		     // [WDJ] Use the good lower texture
+! 		     strncpy (s->tex3, s->tex2, WAD_TEX_NAME);
+! 		   }else{
+! 		     // re-init (confused default)
+! 	             strncpy (s->tex3, default_middle_texture, WAD_TEX_NAME);
+! 			// [WDJ] Sector trashed bug fix 10/14/2009
+! 		        // Use of strcpy trashed the sector number
+! 			// with the string terminator when 8 char name.
+! 		   }
+! 	        }
+! 	       // Always remove the upper and lower texture on 1s linedef
+!                strcpy (s->tex1, "-");
+!                strcpy (s->tex2, "-");
+  	       }
+  	    /* Don't delete the 2nd sidedef, it could be used
+                 by another linedef. And if it isn't, the next
+                 cross-references check will delete it anyway. */
+  	    }
+  	 }
+        // Sector -> Mirror horizontally
+        else if (objtype == OBJ_SECTORS)
+diff -C8 orig/flats.cc src/flats.cc
+*** orig/flats.cc	Fri Mar 28 06:37:32 2003
+--- src/flats.cc	Sat Oct 24 22:55:34 2009
+***************
+*** 61,77 ****
+    /* If we only have a 320x200x256 VGA driver, we must change x0 and y0.
+       Yuck! */
+    if (GfxMode > -2)
+    {
+      x0 = -1;
+      y0 = -1;
+    }
+    InputNameFromListWithFunc (x0, y0, prompt, (size_t) NumFTexture, flat_names,
+!     5, name, 64, 64, DisplayFloorTexture);
+  
+    SwitchToVGA16 ();
+  
+    ShowMousePointer ();
+    FreeMemory (flat_names);
+  }
+  
+  
+--- 61,77 ----
+    /* If we only have a 320x200x256 VGA driver, we must change x0 and y0.
+       Yuck! */
+    if (GfxMode > -2)
+    {
+      x0 = -1;
+      y0 = -1;
+    }
+    InputNameFromListWithFunc (x0, y0, prompt, (size_t) NumFTexture, flat_names,
+!     5, name, 64, 64, 0, DisplayFloorTexture);
+  
+    SwitchToVGA16 ();
+  
+    ShowMousePointer ();
+    FreeMemory (flat_names);
+  }
+  
+  
+diff -C8 orig/l_prop.cc src/l_prop.cc
+*** orig/l_prop.cc	Thu Jul  9 17:17:59 2009
+--- src/l_prop.cc	Sat Oct 31 08:29:45 2009
+***************
+*** 24,40 ****
+  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+  FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License along with
+  this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+  Place, Suite 330, Boston, MA 02111-1307, USA.
+  */
+  
+- 
+  #include "yadex.h"
+  #include "entry.h"
+  #include "gfx.h"
+  #include "levels.h"
+  #include "menudata.h"
+  #include "objects.h"
+  #include "objid.h"
+  #include "oldmenus.h"
+--- 24,39 ----
+***************
+*** 103,144 ****
+  
+  /*
+   *	Prototypes of private functions
+   */
+  static char *GetTaggedLineDefFlag (int linedefnum, int flagndx);
+  int InputLinedefType (int x0, int y0, int *number);
+  static const char *PrintLdtgroup (void *ptr);
+  
+  
+  void LinedefProperties (int x0, int y0, SelPtr obj)
+  {
+    char  *menustr[12];
+    char   texname[WAD_TEX_NAME + 1];
+!   int    n, val;
+    SelPtr cur, sdlist;
+    int objtype = OBJ_LINEDEFS;
+    int    subwin_y0;
+    int    subsubwin_y0;
+  
+    {
+      bool sd1 = LineDefs[obj->objnum].sidedef1 >= 0;
+      bool sd2 = LineDefs[obj->objnum].sidedef2 >= 0;
+      val = vDisplayMenu (x0, y0, "Choose the object to edit:",
+         "Edit the linedef",					YK_, 0,
+         sd1 ? "Edit the 1st sidedef" : "Add a 1st sidedef",	YK_, 0,
+         sd2 ? "Edit the 2nd sidedef" : "Add a 2nd sidedef",	YK_, 0,
+         NULL);
+    }
+    subwin_y0 = y0 + BOX_BORDER + (2 + val) * FONTH;
+    switch (val)
+    {
+      case 1:
+!       for (n = 0; n < 12; n++)
+  	menustr[n] = (char *) GetMemory (60);
+        sprintf (menustr[11], "Edit linedef #%d", obj->objnum);
+        sprintf (menustr[0], "Change flags            (Current: %d)",
+  	LineDefs[obj->objnum].flags);
+        sprintf (menustr[1], "Change type             (Current: %d)",
+  	LineDefs[obj->objnum].type);
+        sprintf (menustr[2], "Change sector tag       (Current: %d)",
+  	LineDefs[obj->objnum].tag);
+        sprintf (menustr[3], "Change starting vertex  (Current: #%d)",
+--- 102,224 ----
+  
+  /*
+   *	Prototypes of private functions
+   */
+  static char *GetTaggedLineDefFlag (int linedefnum, int flagndx);
+  int InputLinedefType (int x0, int y0, int *number);
+  static const char *PrintLdtgroup (void *ptr);
+  
++ // [WDJ] Selection list for texture field
++ // use selection list to get texture, colormap, or raw string into texname
++ void select_texture( int x0, int y0, bool sidedef1_flag, int linedef_num,
++ 		     /* PTR to OUT */ char * texname )
++ {
++    int escflag;
++    // texsel is set of SEL_TEXTURE, SEL_COLORMAP, SEL_RAWSTRING
++    int texsel =  SEL_TEXTURE; 	// default is texture
++    int texin = SEL_TEXTURE;	// first choice
++ 
++    if( sidedef1_flag )	// texture special uses
++    {
++       ObjectsNeeded (OBJ_LINEDEFS, 0);
++       switch( LineDefs[linedef_num].type ){
++        case 260:	// Boom transparency
++ 	 // when tag==0, sidedef1 middle texture can optionally be a LUMP
++ 	 // name that has a transparency map, size=64K.
++ 	 texsel = SEL_TEXTURE | SEL_RAWSTRING;
++ 	 texin = SEL_RAWSTRING;
++ 	 break;
++        case 242:	// Boom Deep water
++ 	 // sidedef1 textures can be textures or colormaps
++        case 280:	// Legacy water
++ 	 // sidedef1 textures can be textures or colormaps
++ 	 texsel = SEL_TEXTURE | SEL_COLORMAP;
++ 	 texin = SEL_COLORMAP;
++ 	 break;
++        case 282:	// Legacy generate colormap
++ 	 // sidedef1 textures can be textures or # settings to generate colormap
++        case 300:	// Legacy 3d solid translucent floor
++ 	 // sidedef1, upper texture encodes for alpha, #nnn
++        case 301:	// Legacy 3d translucent water
++ 	 // sidedef1, upper texture encodes for alpha, #nnn
++ 	 texsel = SEL_TEXTURE | SEL_RAWSTRING;
++ 	 texin = SEL_RAWSTRING;
++ 	 break;
++       }
++    }else{
++       texsel =  SEL_TEXTURE; 	// default is texture
++       texin = SEL_TEXTURE;	// first choice
++    }
++    
++    do {
++       switch( texin ) {
++        case SEL_COLORMAP:
++ 	 // Boom Deep-water has COLORMAP in place of textures
++ 	 escflag = InputNameFromList (x0, y0, "Boom Colormap",
++ 			NumBoomColormap, BoomColormap, texname, texsel );
++ 	 break;
++ 	 
++        case SEL_TEXTURE:
++ 	 escflag = ChooseWallTexture (x0, y0, "Choose a wall texture",
++ 			NumWTexture, WTexture, texname, texsel);
++ 	 break;
++ 	 
++        case SEL_RAWSTRING:
++ 	 escflag = InputNameFromList (x0, y0, "Raw string",
++ 			0, NULL, texname, texsel );
++ 	 break;
++       }
++       texin = escflag & texsel;  // while it is an escape to another list
++    }while( texin );
++ }
+  
++ // edit all in obj list of linedef
+  void LinedefProperties (int x0, int y0, SelPtr obj)
+  {
+    char  *menustr[12];
+    char   texname[WAD_TEX_NAME + 1];
+!   int    n, val, nummenu = 0;
+    SelPtr cur, sdlist;
+    int objtype = OBJ_LINEDEFS;
+    int    subwin_y0;
+    int    subsubwin_y0;
++   bool	 sidedef1_flag;	//[WDJ] detect special linedef use of sidedef1
++   char  *textureref;
+  
+    {
++     // examine first linedef in list
+      bool sd1 = LineDefs[obj->objnum].sidedef1 >= 0;
+      bool sd2 = LineDefs[obj->objnum].sidedef2 >= 0;
+      val = vDisplayMenu (x0, y0, "Choose the object to edit:",
+         "Edit the linedef",					YK_, 0,
+         sd1 ? "Edit the 1st sidedef" : "Add a 1st sidedef",	YK_, 0,
+         sd2 ? "Edit the 2nd sidedef" : "Add a 2nd sidedef",	YK_, 0,
+         NULL);
+    }
+    subwin_y0 = y0 + BOX_BORDER + (2 + val) * FONTH;
++   // [WDJ] too hard to read two large switches together
+    switch (val)
+    {
+      case 1:
+!      goto edit_linedef;
+!     case 2:	// Edit or add the first sidedef
+!      goto edit_sidedef1;
+!     case 3:     // Edit or add the second sidedef
+!      goto edit_sidedef2;
+!   }	// end switch
+!   return;	// error or escape
+!      
+!   // Edit the linedef type and flags
+! edit_linedef:
+!       nummenu = 11;
+!       for (n = 0; n <= nummenu; n++)
+  	menustr[n] = (char *) GetMemory (60);
++    for(;;){	// repeat until done editing these linedef
++       // make menu using first linedef in obj list
+        sprintf (menustr[11], "Edit linedef #%d", obj->objnum);
+        sprintf (menustr[0], "Change flags            (Current: %d)",
+  	LineDefs[obj->objnum].flags);
+        sprintf (menustr[1], "Change type             (Current: %d)",
+  	LineDefs[obj->objnum].type);
+        sprintf (menustr[2], "Change sector tag       (Current: %d)",
+  	LineDefs[obj->objnum].tag);
+        sprintf (menustr[3], "Change starting vertex  (Current: #%d)",
+***************
+*** 176,193 ****
+  	menustr[0], YK_, 0,
+  	menustr[1], YK_, 0,
+  	menustr[2], YK_, 0,
+  	menustr[3], YK_, 0,
+  	menustr[4], YK_, 0,
+  	menustr[5], YK_, 0,
+  	menustr[6], YK_, 0,
+  	NULL);
+-       for (n = 0; n < 12; n++)
+- 	FreeMemory (menustr[n]);
+        subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
+        switch (val)
+        {
+  	case 1:
+  	  val = vDisplayMenu (x0 + 84, subsubwin_y0, "Toggle the flags:",
+  	    GetTaggedLineDefFlag (obj->objnum, 1),  YK_, 0,
+  	    GetTaggedLineDefFlag (obj->objnum, 2),  YK_, 0,
+  	    GetTaggedLineDefFlag (obj->objnum, 3),  YK_, 0,
+--- 256,271 ----
+***************
+*** 331,416 ****
+  	    0, 255, LineDefs[obj->objnum].arg5);
+  	  if (val != IIV_CANCEL)  // Not [esc]
+  	  {
+  	    for (cur = obj; cur; cur = cur->next)
+  	      LineDefs[cur->objnum].arg5 = val;
+  	    MadeChanges = 1;
+  	  }
+  	  break;
+!      }
+!      break;
+  
+      // Edit or add the first sidedef
+!     case 2:
+        ObjectsNeeded (OBJ_LINEDEFS, OBJ_SIDEDEFS, 0);
+!       if (LineDefs[obj->objnum].sidedef1 >= 0)
+!       {
+! 	// Build a new selection list with the first sidedefs
+! 	objtype = OBJ_SIDEDEFS;
+! 	sdlist = 0;
+! 	for (cur = obj; cur; cur = cur->next)
+! 	  if (LineDefs[cur->objnum].sidedef1 >= 0)
+! 	    SelectObject (&sdlist, LineDefs[cur->objnum].sidedef1);
+!       }
+!       else
+        {
+  	// Add a new first sidedef
+  	for (cur = obj; cur; cur = cur->next)
+  	  if (LineDefs[cur->objnum].sidedef1 == -1)
+  	  {
+  	    InsertObject (OBJ_SIDEDEFS, -1, 0, 0);
+  	    LineDefs[cur->objnum].sidedef1 = NumSideDefs - 1;
+  	  }
+! 	break;
+        }
+!       // FALL THROUGH
+  
+      // Edit or add the second sidedef
+!     case 3:
+!       if (objtype != OBJ_SIDEDEFS)
+!       {
+! 	if (LineDefs[obj->objnum].sidedef2 >= 0)
+! 	{
+! 	  // Build a new selection list with the second (or first) SideDefs
+! 	  objtype = OBJ_SIDEDEFS;
+! 	  sdlist = 0;
+! 	  for (cur = obj; cur; cur = cur->next)
+! 	    if (LineDefs[cur->objnum].sidedef2 >= 0)
+! 	      SelectObject (&sdlist, LineDefs[cur->objnum].sidedef2);
+! 	    else if (LineDefs[cur->objnum].sidedef1 >= 0)
+! 	      SelectObject (&sdlist, LineDefs[cur->objnum].sidedef1);
+! 	}
+! 	else
+  	{
+  	  // Add a new second (or first) sidedef
+  	  for (cur = obj; cur; cur = cur->next)
+! 	    if (LineDefs[cur->objnum].sidedef1 == -1)
+  	    {
+  	      InsertObject (OBJ_SIDEDEFS, -1, 0, 0);
+  	      ObjectsNeeded (OBJ_LINEDEFS, 0);
+  	      LineDefs[cur->objnum].sidedef1 = NumSideDefs - 1;
+  	    }
+! 	    else if (LineDefs[cur->objnum].sidedef2 == -1)
+  	    {
+  	      n = LineDefs[cur->objnum].sidedef1;
+  	      InsertObject (OBJ_SIDEDEFS, -1, 0, 0);
+  	      strncpy (SideDefs[NumSideDefs - 1].tex3, "-", WAD_TEX_NAME);
+  	      strncpy (SideDefs[n].tex3, "-", WAD_TEX_NAME);
+  	      ObjectsNeeded (OBJ_LINEDEFS, 0);
+  	      LineDefs[cur->objnum].sidedef2 = NumSideDefs - 1;
+  	      LineDefs[cur->objnum].flags ^= 4;  // Set the 2S bit
+  	      LineDefs[cur->objnum].flags &= ~1;  // Clear the Im bit
+  	    }
+! 	  break;
+  	}
+!       }
+        ObjectsNeeded (OBJ_SIDEDEFS, 0);
+!       for (n = 0; n < 7; n++)
+  	menustr[n] = (char *) GetMemory (60);
+        sprintf (menustr[6], "Edit sidedef #%d", sdlist->objnum);
+        texname[WAD_TEX_NAME] = '\0';
+        strncpy (texname, SideDefs[sdlist->objnum].tex3, WAD_TEX_NAME);
+        sprintf (menustr[0], "Change middle texture   (Current: %s)", texname);
+        strncpy (texname, SideDefs[sdlist->objnum].tex1, WAD_TEX_NAME);
+        sprintf (menustr[1], "Change upper texture    (Current: %s)", texname);
+        strncpy (texname, SideDefs[sdlist->objnum].tex2, WAD_TEX_NAME);
+        sprintf (menustr[2], "Change lower texture    (Current: %s)", texname);
+--- 409,504 ----
+  	    0, 255, LineDefs[obj->objnum].arg5);
+  	  if (val != IIV_CANCEL)  // Not [esc]
+  	  {
+  	    for (cur = obj; cur; cur = cur->next)
+  	      LineDefs[cur->objnum].arg5 = val;
+  	    MadeChanges = 1;
+  	  }
+  	  break;
+!        default:
+! 	 goto edit_linedef_done;	// escape edit_linedef menu loop
+!      } // end switch
+!    }  // end loop
+! edit_linedef_done:   
+!    for (n = 0; n <= nummenu; n++)
+! 	FreeMemory (menustr[n]);
+!    return;	// end of edit_linedef
+  
++    
+      // Edit or add the first sidedef
+! edit_sidedef1:   
+!       sidedef1_flag = true;
+        ObjectsNeeded (OBJ_LINEDEFS, OBJ_SIDEDEFS, 0);
+!       if (LineDefs[obj->objnum].sidedef1 < 0)	// no sidedef1
+        {
+  	// Add a new first sidedef
+  	for (cur = obj; cur; cur = cur->next)
+  	  if (LineDefs[cur->objnum].sidedef1 == -1)
+  	  {
+  	    InsertObject (OBJ_SIDEDEFS, -1, 0, 0);
+  	    LineDefs[cur->objnum].sidedef1 = NumSideDefs - 1;
+  	  }
+! 	// break;  // [WDJ] continue with set fields of the new sidedef
+        }
+!       {
+! 	// Build a new selection list with the first sidedefs
+! 	objtype = OBJ_SIDEDEFS;
+! 	sdlist = 0;
+! 	for (cur = obj; cur; cur = cur->next)
+! 	  if (LineDefs[cur->objnum].sidedef1 >= 0)
+! 	    SelectObject (&sdlist, LineDefs[cur->objnum].sidedef1);
+!       }
+!       goto edit_sidedef;  // to common code
+  
++    
+      // Edit or add the second sidedef
+! edit_sidedef2:
+!         sidedef1_flag = false;
+! 	if (LineDefs[obj->objnum].sidedef2 < 0)
+  	{
+  	  // Add a new second (or first) sidedef
+  	  for (cur = obj; cur; cur = cur->next)
+! 	    if (LineDefs[cur->objnum].sidedef1 == -1)	// no sidedef1
+  	    {
++ 	      // make sidedef1 instead
+  	      InsertObject (OBJ_SIDEDEFS, -1, 0, 0);
+  	      ObjectsNeeded (OBJ_LINEDEFS, 0);
+  	      LineDefs[cur->objnum].sidedef1 = NumSideDefs - 1;
+  	    }
+! 	    else if (LineDefs[cur->objnum].sidedef2 == -1)  // no sidedef2
+  	    {
+  	      n = LineDefs[cur->objnum].sidedef1;
+  	      InsertObject (OBJ_SIDEDEFS, -1, 0, 0);
+  	      strncpy (SideDefs[NumSideDefs - 1].tex3, "-", WAD_TEX_NAME);
+  	      strncpy (SideDefs[n].tex3, "-", WAD_TEX_NAME);
+  	      ObjectsNeeded (OBJ_LINEDEFS, 0);
+  	      LineDefs[cur->objnum].sidedef2 = NumSideDefs - 1;
+  	      LineDefs[cur->objnum].flags ^= 4;  // Set the 2S bit
+  	      LineDefs[cur->objnum].flags &= ~1;  // Clear the Im bit
+  	    }
+! 	  // break; [WDJ]  // [WDJ] continue with set fields of the new sidedef
+  	}
+! 	{
+! 	  // Build a new selection list with the second (or first) SideDefs
+! 	  objtype = OBJ_SIDEDEFS;
+! 	  sdlist = 0;
+! 	  for (cur = obj; cur; cur = cur->next)
+! 	    if (LineDefs[cur->objnum].sidedef2 >= 0)	// have sidedef2
+! 	      SelectObject (&sdlist, LineDefs[cur->objnum].sidedef2);
+! 	    else if (LineDefs[cur->objnum].sidedef1 >= 0)  // try sidedef1
+! 	      SelectObject (&sdlist, LineDefs[cur->objnum].sidedef1);
+! 	}
+!      
+! edit_sidedef:     
+        ObjectsNeeded (OBJ_SIDEDEFS, 0);
+!       nummenu = 6;
+!       for (n = 0; n <= nummenu; n++)
+  	menustr[n] = (char *) GetMemory (60);
++    for(;;){
+        sprintf (menustr[6], "Edit sidedef #%d", sdlist->objnum);
+        texname[WAD_TEX_NAME] = '\0';
+        strncpy (texname, SideDefs[sdlist->objnum].tex3, WAD_TEX_NAME);
+        sprintf (menustr[0], "Change middle texture   (Current: %s)", texname);
+        strncpy (texname, SideDefs[sdlist->objnum].tex1, WAD_TEX_NAME);
+        sprintf (menustr[1], "Change upper texture    (Current: %s)", texname);
+        strncpy (texname, SideDefs[sdlist->objnum].tex2, WAD_TEX_NAME);
+        sprintf (menustr[2], "Change lower texture    (Current: %s)", texname);
+***************
+*** 423,485 ****
+        val = vDisplayMenu (x0 + 42, subwin_y0, menustr[6],
+  	menustr[0], YK_, 0,
+  	menustr[1], YK_, 0,
+  	menustr[2], YK_, 0,
+  	menustr[3], YK_, 0,
+  	menustr[4], YK_, 0,
+  	menustr[5], YK_, 0,
+  	NULL);
+-       for (n = 0; n < 7; n++)
+- 	FreeMemory (menustr[n]);
+        subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
+        switch (val)
+        {
+  	case 1:
+! 	  strncpy (texname, SideDefs[sdlist->objnum].tex3, WAD_TEX_NAME);
+! 	  ObjectsNeeded (0);
+! 	  ChooseWallTexture (x0 + 84, subsubwin_y0 ,
+! 	    "Choose a wall texture", NumWTexture, WTexture, texname);
+! 	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+! 	  if (strlen (texname) > 0)
+! 	  {
+! 	    for (cur = sdlist; cur; cur = cur->next)
+! 	      if (cur->objnum >= 0)
+! 		strncpy (SideDefs[cur->objnum].tex3, texname, WAD_TEX_NAME);
+! 	    MadeChanges = 1;
+! 	  }
+! 	  break;
+! 
+  	case 2:
+! 	  strncpy (texname, SideDefs[sdlist->objnum].tex1, WAD_TEX_NAME);
+! 	  ObjectsNeeded (0);
+! 	  ChooseWallTexture (x0 + 84, subsubwin_y0,
+! 	     "Choose a wall texture", NumWTexture, WTexture, texname);
+! 	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+! 	  if (strlen (texname) > 0)
+! 	  {
+! 	    for (cur = sdlist; cur; cur = cur->next)
+! 	      if (cur->objnum >= 0)
+! 		strncpy (SideDefs[cur->objnum].tex1, texname, WAD_TEX_NAME);
+! 	    MadeChanges = 1;
+! 	  }
+! 	  break;
+! 
+  	case 3:
+! 	  strncpy (texname, SideDefs[sdlist->objnum].tex2, WAD_TEX_NAME);
+  	  ObjectsNeeded (0);
+! 	  ChooseWallTexture (x0 + 84, subsubwin_y0,
+! 	    "Choose a wall texture", NumWTexture, WTexture, texname);
+  	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+! 	  if (strlen (texname) > 0)
+  	  {
+! 	    for (cur = sdlist; cur; cur = cur->next)
+! 	      if (cur->objnum >= 0)
+! 		strncpy (SideDefs[cur->objnum].tex2, texname, WAD_TEX_NAME);
+! 	    MadeChanges = 1;
+  	  }
+  	  break;
+  
+  	case 4:
+  	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
+  	    -32768, 32767, SideDefs[sdlist->objnum].xoff);
+  	  if (val != IIV_CANCEL)
+  	  {
+--- 511,569 ----
+        val = vDisplayMenu (x0 + 42, subwin_y0, menustr[6],
+  	menustr[0], YK_, 0,
+  	menustr[1], YK_, 0,
+  	menustr[2], YK_, 0,
+  	menustr[3], YK_, 0,
+  	menustr[4], YK_, 0,
+  	menustr[5], YK_, 0,
+  	NULL);
+        subsubwin_y0 = subwin_y0 + BOX_BORDER + (2 + val) * FONTH;
++       // use first sidedef on list as current value
+        switch (val)
+        {
+  	case 1:
+! 	  textureref = & SideDefs[sdlist->objnum].tex3[0]; // middle
+! 	  goto set_texture;
+  	case 2:
+! 	  textureref = & SideDefs[sdlist->objnum].tex1[0]; // upper
+! 	  goto set_texture;
+  	case 3:
+! 	  textureref = & SideDefs[sdlist->objnum].tex2[0]; // lower
+! 	 
+!         set_texture:
+! 	  strncpy (texname, textureref, WAD_TEX_NAME);
+  	  ObjectsNeeded (0);
+! 	  // select texture, colormap, or raw string
+! 	  // based on first linedef
+! 	  select_texture( x0 + 84, subsubwin_y0, sidedef1_flag, obj->objnum,
+! 			  texname );
+  	  ObjectsNeeded (OBJ_SIDEDEFS, 0);
+! 	  if (strlen (texname) > 0)	// if new name string to set
+  	  {
+! 	     for (cur = sdlist; cur; cur = cur->next)	// all in sidedef list
+! 	     {
+! 		if (cur->objnum >= 0)
+! 		{
+! 		   switch (val)
+! 		   {
+! 		    case 1:
+! 		      textureref = & SideDefs[cur->objnum].tex3[0]; // middle
+! 		      break;
+! 		    case 2:
+! 		      textureref = & SideDefs[cur->objnum].tex1[0]; // upper
+! 		      break;
+! 		    case 3:
+! 		      textureref = & SideDefs[cur->objnum].tex2[0]; // lower
+! 		      break;
+! 		   }
+! 		   strncpy (textureref, texname, WAD_TEX_NAME);
+! 		}
+! 	     }
+! 	     MadeChanges = 1;
+  	  }
+  	  break;
+  
+  	case 4:
+  	  val = InputIntegerValue (x0 + 84, subsubwin_y0,
+  	    -32768, 32767, SideDefs[sdlist->objnum].xoff);
+  	  if (val != IIV_CANCEL)
+  	  {
+***************
+*** 508,527 ****
+  	  if (val >= 0)
+  	  {
+  	    for (cur = sdlist; cur; cur = cur->next)
+  	      if (cur->objnum >= 0)
+  		SideDefs[cur->objnum].sector = val;
+  	    MadeChanges = 1;
+  	  }
+  	  break;
+!       }
+!       ForgetSelection (&sdlist);
+!       break;
+!   }
+  }
+  
+  
+  /*
+  */
+  
+  static char *GetTaggedLineDefFlag (int linedefnum, int flagndx)
+  {
+--- 592,616 ----
+  	  if (val >= 0)
+  	  {
+  	    for (cur = sdlist; cur; cur = cur->next)
+  	      if (cur->objnum >= 0)
+  		SideDefs[cur->objnum].sector = val;
+  	    MadeChanges = 1;
+  	  }
+  	  break;
+!        default:
+! 	 goto edit_sidedef_done;	// escape edit_sidedef menu loop
+!       } // end switch
+!    }	// end loop
+! edit_sidedef_done:
+!    ForgetSelection (&sdlist);
+!    for (n = 0; n <= nummenu; n++)
+!      FreeMemory (menustr[n]);
+!    return;
+  }
+  
+  
+  /*
+  */
+  
+  static char *GetTaggedLineDefFlag (int linedefnum, int flagndx)
+  {
+diff -C8 orig/levels.cc src/levels.cc
+*** orig/levels.cc	Thu Jul  9 17:17:59 2009
+--- src/levels.cc	Sat Sep 12 20:58:12 2009
+***************
+*** 1779,1794 ****
+--- 1779,1875 ----
+  
+  void ForgetFTextureNames ()
+  {
+  NumFTexture = 0;
+  FreeMemory (flat_list);
+  flat_list = 0;
+  }
+  
++ /*
++    read the colormap names
++ */
++ 
++ int NumBoomColormap = 0;
++ char ** BoomColormap = NULL;		/* array of colormap names */
++ 
++ void ReadBoomColormapNames ()
++ {
++ MDirPtr dir = MasterDir;
++ int n;
++ 
++ verbmsg ("Reading colormap names\n");
++ NumBoomColormap = 2;
++ BoomColormap = (char **) GetMemory ( NumBoomColormap * sizeof (char *));
++ BoomColormap[0] = (char *) GetMemory (WAD_TEX_NAME + 1);
++ BoomColormap[1] = (char *) GetMemory (WAD_TEX_NAME + 1);
++ strcpy (BoomColormap[0], "-");	// default
++ strcpy (BoomColormap[1], "WATERMAP");	// Boom predefined
++ 
++ while ( dir = FindMasterDir (dir, "C_START") )
++  {
++    MDirPtr dir2;
++    // count the names for allocate of array
++    dir = dir->next;
++    dir2 = dir;	// to re-read the list of names
++    for (n = 0; dir ; dir = dir->next)
++    {
++ //      verbmsg (" %s", dir->dir.name );
++       // check for end of section
++       if ( y_strnicmp (dir->dir.name, "C_END", WAD_NAME) == 0 )  break;
++       // check size
++       if (dir->dir.size != (34*256))  // colormap is a set 34 palette maps
++       {
++ 	 warn ("colormap \"%.*s\" has weird size %lu."
++ 	     " Should be 8704 instead.\n",
++ 	       WAD_NAME, dir->dir.name, (unsigned long) dir->dir.size);
++       }
++       n++;
++    }
++    
++    if( n == 0 ) return;  // no Boom colormaps
++ 
++    verbmsg (" Append BoomColormaps %d\n", n);
++    // re-read saving the actual names from master dir
++    BoomColormap = (char **) ResizeMemory (BoomColormap,
++ 	 (NumBoomColormap + n) * sizeof (char *));
++    for (size_t m = NumBoomColormap; m < NumBoomColormap + n; m++)
++    {
++ //      verbmsg (" %s", dir2->dir.name );
++       BoomColormap[m] = (char *) GetMemory (WAD_TEX_NAME + 1);
++       strncpy( BoomColormap[m], dir2->dir.name, WAD_TEX_NAME+1 );
++       BoomColormap[m][WAD_TEX_NAME] = '\0';
++       dir2 = dir2->next;
++    }
++    NumBoomColormap += n;
++  }
++ // verbmsg( "\n" );
++ 
++ // Forced to sort this list because InputNameFromList requires it.
++ qsort (BoomColormap, NumBoomColormap, sizeof *BoomColormap, SortTextures);
++ 
++ }
++ 
++ 
++ /*
++    forget the Boom colormap names
++ */
++ 
++ void ForgetBoomColormaps ()
++ {
++ int n;
++ 
++ /* forget all names */
++ for (n = 0; n < NumBoomColormap; n++)
++    FreeMemory (BoomColormap[n]);
++    
++ NumBoomColormap = 0;
++ FreeMemory ( BoomColormap );
++ }
++ 
+  
+  /*
+   *	update_level_bounds - update Map{Min,Max}{X,Y}
+   */
+  void update_level_bounds ()
+  {
+  MapMaxX = -32767;
+  MapMaxY = -32767;
+***************
+*** 1804,1811 ****
+--- 1885,1893 ----
+     int y = Vertices[n].y;
+     if (y < MapMinY)
+        MapMinY = y;
+     if (y > MapMaxY)
+        MapMaxY = y;
+     }
+  }
+  
++ 
+diff -C8 orig/levels.h src/levels.h
+*** orig/levels.h	Thu Jul  9 17:17:59 2009
+--- src/levels.h	Sat Sep 12 23:34:35 2009
+***************
+*** 38,53 ****
+--- 38,57 ----
+  typedef struct
+  {
+    char            name[WAD_NAME + 1];	// Name of flat
+    const Wad_file *wadfile;		// Pointer on wad where flat comes from
+    i32             offset;		// Offset of flat in wad
+  } flat_list_entry_t;			// Length is implicit (always 4096)
+  extern flat_list_entry_t *flat_list;	// List of all flats in the directory
+  
++ // [WDJ]
++ extern int NumBoomColormap;
++ extern char **BoomColormap;	/* array of colormap names */
++ 
+  extern int   MapMaxX;		/* maximum X value of map */
+  extern int   MapMaxY;		/* maximum Y value of map */
+  extern int   MapMinX;		/* minimum X value of map */
+  extern int   MapMinY;		/* minimum Y value of map */
+  extern bool  MadeChanges;	/* made changes? */
+  extern bool  MadeMapChanges;	/* made changes that need rebuilding? */
+  
+  extern unsigned long things_angles;  /* Used to know whether a list of
+diff -C8 orig/lists.cc src/lists.cc
+*** orig/lists.cc	Sun Dec 14 18:50:47 2003
+--- src/lists.cc	Sun Oct 25 05:49:02 2009
+***************
+*** 65,108 ****
+        width   : \ width and height of an optional window where a picture
+        height  : / can be displayed (used to display textures, sprites, etc.).
+        hookfunc: function that should be called to display a picture.
+  		(x1, y1, x2, y2 = coordinates of the window in which the
+  		 picture must be drawn, name = name of the picture).
+  AYM 1998-02-12 : if hookfunc is <> NULL, a message "Press shift-F1 to save
+    image to file" is displayed and shift-F1 does just that.
+  */
+  
+  #ifdef DEBUG
+  static bool disp_lump_loc = false;
+  #endif
+! 
+! void InputNameFromListWithFunc (
+     int x0,
+     int y0,
+     const char *prompt,
+     size_t listsize,
+     const char *const *list,
+     size_t listdisp,
+     char *name,
+     int width,
+     int height,
+     void (*hookfunc)(hookfunc_comm_t *),
+!    char flags_to_pass_to_callback)
+  {
+  const char *msg1 = "Press Shift-F1 to";
+  const char *msg2 = "save image to file";
+! int    key;
+  size_t n;
+  size_t win_height;
+  int    win_columns;
+  int    win_width;
+  int    l0;
+  int    x1, y1, x2, y2;
+! size_t maxlen;
+  int    xlist;
+  bool   picture_size_drawn = false;
+  #ifdef DEBUG
+  bool   lump_loc_drawn = false;
+  #endif
+  bool   ok, firstkey;
+  int    entry_out_x0;	/* Edge of name entry widget including border */
+  int    entry_out_y0;
+--- 65,113 ----
+        width   : \ width and height of an optional window where a picture
+        height  : / can be displayed (used to display textures, sprites, etc.).
+        hookfunc: function that should be called to display a picture.
+  		(x1, y1, x2, y2 = coordinates of the window in which the
+  		 picture must be drawn, name = name of the picture).
+  AYM 1998-02-12 : if hookfunc is <> NULL, a message "Press shift-F1 to save
+    image to file" is displayed and shift-F1 does just that.
+  */
++ // [WDJ] 10/20/2009, adapted for list=NULL, RAWSTRING input, and for
++ // switching between RAWSTRING, TEXTURE list, and COLORMAP list
+  
+  #ifdef DEBUG
+  static bool disp_lump_loc = false;
+  #endif
+! // return 0 on reject
+! // return TK_RETURN on success
+! // return key on special key
+! int InputNameFromListWithFunc (
+     int x0,
+     int y0,
+     const char *prompt,
+     size_t listsize,
+     const char *const *list,
+     size_t listdisp,
+     char *name,
+     int width,
+     int height,
++    int escapes,			  
+     void (*hookfunc)(hookfunc_comm_t *),
+!    char flags_to_pass_to_callback )
+  {
+  const char *msg1 = "Press Shift-F1 to";
+  const char *msg2 = "save image to file";
+! int    key, retf = 0;
+  size_t n;
+  size_t win_height;
+  int    win_columns;
+  int    win_width;
+  int    l0;
+  int    x1, y1, x2, y2;
+! size_t maxlen = 0;
+  int    xlist;
+  bool   picture_size_drawn = false;
+  #ifdef DEBUG
+  bool   lump_loc_drawn = false;
+  #endif
+  bool   ok, firstkey;
+  int    entry_out_x0;	/* Edge of name entry widget including border */
+  int    entry_out_y0;
+***************
+*** 120,142 ****
+    width = 0;
+  }
+  if (height < 0)
+  {
+    nf_bug ("inflwf2");
+    height = 0;
+  }
+  
+! // Compute maxlen, the length of the longest item in the list
+! maxlen = 1;
+! for (n = 0; n < listsize; n++)
+!    if (strlen (list[n]) > maxlen)
+!       maxlen = strlen (list[n]);
+! for (n = strlen (name) + 1; n <= maxlen; n++)
+!    name[n] = '\0';
+  char *namedisp = new char[maxlen + 1];
+  memset (namedisp, '\xff', maxlen + 1);  // Always != from name
+  
+  // Compute the minimum width of the dialog box
+  l0 = 12;
+  if (hookfunc != NULL)
+     {
+     if ((int) (strlen (msg1) + 2) > l0)  // (int) to prevent GCC warning
+--- 125,152 ----
+    width = 0;
+  }
+  if (height < 0)
+  {
+    nf_bug ("inflwf2");
+    height = 0;
+  }
+  
+! if( list ){
+!    // Compute maxlen, the length of the longest item in the list
+!    maxlen = 1;
+!    for (n = 0; n < listsize; n++) {
+!       register int sl = strlen( list[n] );
+!       if ( sl > maxlen )	maxlen = sl;
+!    }
+!    for (n = strlen (name) + 1; n <= maxlen; n++)
+!      name[n] = '\0';
+! }else{
+!    maxlen = 8;
+! }
+  char *namedisp = new char[maxlen + 1];
+  memset (namedisp, '\xff', maxlen + 1);  // Always != from name
+  
+  // Compute the minimum width of the dialog box
+  l0 = 12;
+  if (hookfunc != NULL)
+     {
+     if ((int) (strlen (msg1) + 2) > l0)  // (int) to prevent GCC warning
+***************
+*** 213,262 ****
+  // The event loop
+  for (;;)
+     {
+     hookfunc_comm_t c;
+  
+     // Reset maxpatches every time when change texture
+     if (strcmp (name, namedisp) != 0)
+       maxpatches = 0;
+! 
+!    // Is "name" in the list ?
+!    for (n = 0; n < listsize; n++)
+!       if (y_stricmp (name, list[n]) <= 0)
+! 	 break;
+!    ok = n < listsize ? ! y_stricmp (name, list[n]) : false;
+!    if (n >= listsize)
+!       n = listsize - 1;
+! 
+!    // Display the <listdisp> next items in the list
+!    {
+!    size_t l;				// Current line
+!    int y = entry_out_y0;		// Y-coord of current line
+!    int xmin = x0 + xlist;
+!    int xmax = xmin + FONTW * maxlen - 1;
+!    for (l = 0; l < listdisp && n + l < listsize; l++)
+!       {
+!       if (false && has_input_event ())	// TEST
+! 	 {
+! 	 putchar ('.');		// TEST
+! 	 fflush (stdout);	// TEST
+! 	 goto shortcut;		// TEST
+  	 }
+-       set_colour (WINBG);
+-       DrawScreenBox (xmin, y, xmax, y + FONTH - 1);
+-       set_colour (WINFG);
+-       DrawScreenText (xmin, y, list[n+l]);
+-       y += FONTH;
+-       }
+-    if (l < listdisp)  // Less than <listdisp> names to display
+-       {
+-       set_colour (WINBG);
+-       DrawScreenBox (xmin, y, xmax, entry_out_y0 + listdisp * FONTH - 1);
+        }
+     }
+  
+     // Display the entry box and the current text
+     set_colour (BLACK);
+     DrawScreenBox (entry_text_x0, entry_text_y0, entry_text_x1, entry_text_y1);
+     if (ok)  // FIXME this colour scheme should be changed.
+        set_colour (WHITE);
+     else
+--- 223,276 ----
+  // The event loop
+  for (;;)
+     {
+     hookfunc_comm_t c;
+  
+     // Reset maxpatches every time when change texture
+     if (strcmp (name, namedisp) != 0)
+       maxpatches = 0;
+!    if( list ) {
+!       // Is "name" in the list ?
+!       for (n = 0; n < listsize; n++) {
+! 	if (y_stricmp (name, list[n]) <= 0)
+! 	  break;
+!       }
+!       ok = n < listsize ? ! y_stricmp (name, list[n]) : false;
+!       if (n >= listsize)
+! 	n = listsize - 1;
+! 
+!       // Display the <listdisp> next items in the list
+!       {
+! 	 size_t l;				// Current line
+! 	 int y = entry_out_y0;		// Y-coord of current line
+! 	 int xmin = x0 + xlist;
+! 	 int xmax = xmin + FONTW * maxlen - 1;
+! 	 for (l = 0; l < listdisp && n + l < listsize; l++)
+! 	 {
+! 	    if (false && has_input_event ())	// TEST
+! 	    {
+! 	       putchar ('.');		// TEST
+! 	       fflush (stdout);	// TEST
+! 	       goto shortcut;		// TEST
+! 	    }
+! 	    set_colour (WINBG);
+! 	    DrawScreenBox (xmin, y, xmax, y + FONTH - 1);
+! 	    set_colour (WINFG);
+! 	    DrawScreenText (xmin, y, list[n+l]);
+! 	    y += FONTH;
+! 	 }
+! 	 if (l < listdisp)  // Less than <listdisp> names to display
+! 	 {
+! 	    set_colour (WINBG);
+! 	    DrawScreenBox (xmin, y, xmax, entry_out_y0 + listdisp * FONTH - 1);
+  	 }
+        }
++    }else{
++       ok = 1;
+     }
+  
+     // Display the entry box and the current text
+     set_colour (BLACK);
+     DrawScreenBox (entry_text_x0, entry_text_y0, entry_text_x1, entry_text_y1);
+     if (ok)  // FIXME this colour scheme should be changed.
+        set_colour (WHITE);
+     else
+***************
+*** 394,514 ****
+  	 name[i] = '\0';
+        }
+     firstkey = false;
+     size_t len = strlen (name);
+     if (len < maxlen && key >= 'a' && key <= 'z')
+        {
+        name[len] = key + 'A' - 'a';
+        name[len + 1] = '\0';
+        }
+     else if (len < maxlen && is_ordinary (key) && key != ' ')
+        {
+        name[len] = key;
+        name[len + 1] = '\0';
+        }
+     else if (len > 0 && key == YK_BACKSPACE)		// BS
+        name[len - 1] = '\0';
+     else if (key == 21 || key == 23)			// ^U, ^W
+        *name = '\0';
+!    else if (key == YK_DOWN)				// [Down]
+        {
+        /* Look for the next item in the list that has a
+  	 different name. Why not just use the next item ?
+  	 Because sometimes the list has duplicates (for example
+  	 when editing a Doom II pwad in Doom mode) and then the
+  	 viewer gets "stuck" on the first duplicate. */
+!       size_t m = n + 1;
+!       while (m < listsize && ! y_stricmp (list[n], list[m]))
+! 	 m++;
+!       if (m < listsize)
+!          strcpy (name, list[m]);
+!       else
+! 	 Beep ();
+!       }
+!    else if (key == YK_UP)				// [Up]
+!       {
+!       // Same trick as for [Down]
+!       int m = n - 1;
+!       while (m >= 0 && ! y_stricmp (list[n], list[m]))
+! 	 m--;
+!       if (m >= 0)
+!          strcpy (name, list[m]);
+!       else
+!          Beep ();
+!       }
+!    else if (key == YK_PD || key == 6 || key == 22)	// [Pgdn], ^F, ^V
+!       { 
+!       if (n < listsize - listdisp)
+!          strcpy (name, list[y_min (n + listdisp, listsize - 1)]);
+!       else
+! 	 Beep ();
+!       }
+!    else if ((key == YK_PU || key == 2) && n > 0)	// [Pgup], ^B
+!       {
+!       if (n > listdisp)
+! 	 strcpy (name, list[n - listdisp]);
+!       else
+! 	 strcpy (name, list[0]);
+!       }
+!    else if (key == 14)					// ^N
+!       {
+!       if (n + 1 >= listsize)
+! 	 {
+! 	 Beep ();
+!          goto done_with_event;
+  	 }
+!       while (n + 1 < listsize)
+  	 {
+! 	 n++;
+! 	 if (y_strnicmp (list[n - 1], list[n], 4))
+! 	    break;
+  	 }
+-       strcpy (name, list[n]);
+-       }
+-    else if (key == 16)					// ^P
+-       {
+-       if (n < 1)
+- 	 {
+- 	 Beep ();
+  	 goto done_with_event;
+  	 }
+!       // Put in <n> the index of the first entry of the current
+!       // group or, if already at the beginning of the current
+!       // group, the first entry of the previous group.
+!       if (n > 0)
+! 	 {
+! 	 if (y_strnicmp (list[n], list[n - 1], 4))
+! 	    n--;
+! 	 while (n > 0 && ! y_strnicmp (list[n], list[n - 1], 4))
+! 	    n--;
+  	 }
+!       strcpy (name, list[n]);
+!       }
+!    else if (key == (YK_CTRL | YK_PD) || key == YK_END)	// [Ctrl][Pgdn], [End]
+!       {
+!       if (n + 1 >= listsize)
+  	 {
+! 	 Beep ();
+  	 goto done_with_event;
+  	 }
+!       strcpy (name, list[listsize - 1]);
+!       }
+!    else if (key == (YK_CTRL | YK_PU) || key == YK_HOME)	// [Ctrl][Pgup], [Home]
+!       {
+!       if (n < 1)
+  	 {
+! 	 Beep ();
+  	 goto done_with_event;
+  	 }
+!       strcpy (name, list[0]);
+!       }
+!    else if (key == YK_TAB)				// [Tab]
+!       strcpy (name, list[n]);
+!    else if (key == YK_F1 && c.flags & HOOK_LOC_VALID)	// [F1]: print location
+        {
+        printf ("%.8s: %s(%08lXh)\n",
+  	 name, c.lump_loc.wad->pathname (), (unsigned long) c.lump_loc.ofs);
+        }
+     else if (key == YK_F1 + YK_SHIFT	// [Shift][F1] : dump image to file
+      && hookfunc != NULL
+      && (c.flags & HOOK_DRAWN))
+        {
+--- 408,558 ----
+  	 name[i] = '\0';
+        }
+     firstkey = false;
+     size_t len = strlen (name);
+     if (len < maxlen && key >= 'a' && key <= 'z')
+        {
+        name[len] = key + 'A' - 'a';
+        name[len + 1] = '\0';
++       goto done_with_event;
+        }
+     else if (len < maxlen && is_ordinary (key) && key != ' ')
+        {
+        name[len] = key;
+        name[len + 1] = '\0';
++       goto done_with_event;
+        }
+     else if (len > 0 && key == YK_BACKSPACE)		// BS
++       {
+        name[len - 1] = '\0';
++       goto done_with_event;
++       }
+     else if (key == 21 || key == 23)			// ^U, ^W
++       {
+        *name = '\0';
+!       goto done_with_event;
+!       }
+!    else if ( list )	// list movement keys
+        {
++       // [WDJ] only when list is present, because RAWSTRING does not have list
++       // Re-Indented because case were indented more than code within them
++       // and it was unreadable.
++       switch( key ) {
++        case YK_DOWN:				// [Down]
++ 	 {
+        /* Look for the next item in the list that has a
+  	 different name. Why not just use the next item ?
+  	 Because sometimes the list has duplicates (for example
+  	 when editing a Doom II pwad in Doom mode) and then the
+  	 viewer gets "stuck" on the first duplicate. */
+! 	    size_t m = n + 1;
+! 	    while (m < listsize && ! y_stricmp (list[n], list[m]))
+! 	      m++;
+! 	    if (m < listsize)
+! 	      strcpy (name, list[m]);
+! 	    else
+! 	      Beep ();
+  	 }
+! 	 goto done_with_event;
+!        case YK_UP:				// [Up]
+  	 {
+! 	    // Same trick as for [Down]
+! 	    int m = n - 1;
+! 	    while (m >= 0 && ! y_stricmp (list[n], list[m]))
+! 	      m--;
+! 	    if (m >= 0)
+! 	      strcpy (name, list[m]);
+! 	    else
+! 	      Beep ();
+  	 }
+  	 goto done_with_event;
++        case YK_PD: 	// [Pgdn]
++        case 6:		// ^F
++        case 22:		// ^V
++ 	 { 
++ 	    if (n < listsize - listdisp)
++ 	      strcpy (name, list[y_min (n + listdisp, listsize - 1)]);
++ 	    else
++ 	      Beep ();
+  	 }
+! 	 goto done_with_event;
+!        case YK_PU:	// [Pgup]
+!        case 2:		// ^B
+! 	 if( n > 0 ) { 
+! 	    if (n > listdisp)
+! 	      strcpy (name, list[n - listdisp]);
+! 	    else
+! 	      strcpy (name, list[0]);
+  	 }
+! 	 goto done_with_event;
+!        case 14:		// ^N
+  	 {
+! 	    if (n + 1 >= listsize)
+! 	    {
+! 	       Beep ();
+! 	       goto done_with_event;
+! 	    }
+! 	    while (n + 1 < listsize)
+! 	    {
+! 	       n++;
+! 	       if (y_strnicmp (list[n - 1], list[n], 4))  break;
+! 	    }
+! 	    strcpy (name, list[n]);
+! 	 }
+  	 goto done_with_event;
++        case 16:		// ^P
++ 	 {
++ 	    if (n < 1)
++ 	    {
++ 	       Beep ();
++ 	       goto done_with_event;
++ 	    }
++ 	    // Put in <n> the index of the first entry of the current
++ 	    // group or, if already at the beginning of the current
++ 	    // group, the first entry of the previous group.
++ 	    if (n > 0)
++ 	    {
++ 	       if (y_strnicmp (list[n], list[n - 1], 4))
++ 		 n--;
++ 	       while (n > 0 && ! y_strnicmp (list[n], list[n - 1], 4))
++ 		 n--;
++ 	    }
++ 	    strcpy (name, list[n]);
+  	 }
+! 	 goto done_with_event;
+!        case (YK_CTRL | YK_PD):	// [Ctrl][Pgdn]
+!        case YK_END:		// [End]
+  	 {
+! 	    if (n + 1 >= listsize)
+! 	    {
+! 	       Beep ();
+! 	       goto done_with_event;
+! 	    }
+! 	    strcpy (name, list[listsize - 1]);
+! 	 }
+  	 goto done_with_event;
++        case (YK_CTRL | YK_PU):	// [Ctrl][Pgup]
++        case YK_HOME:		// [Home]
++ 	 {
++ 	    if (n < 1)
++ 	    {
++ 	       Beep ();
++ 	       goto done_with_event;
++ 	    }
++ 	    strcpy (name, list[0]);
+  	 }
+! 	 goto done_with_event;
+!        case YK_TAB:				// [Tab]
+! 	 strcpy (name, list[n]);
+! 	 goto done_with_event;
+!       } // end switch
+!      }  // end if list
+!       
+!    if (key == YK_F1 && c.flags & HOOK_LOC_VALID)	// [F1]: print location
+        {
+        printf ("%.8s: %s(%08lXh)\n",
+  	 name, c.lump_loc.wad->pathname (), (unsigned long) c.lump_loc.ofs);
+        }
+     else if (key == YK_F1 + YK_SHIFT	// [Shift][F1] : dump image to file
+      && hookfunc != NULL
+      && (c.flags & HOOK_DRAWN))
+        {
+***************
+*** 540,583 ****
+     else if (key == 24)					// ^X: less patches
+        {
+        if (maxpatches == 0)
+  	maxpatches = c.npatches - 1;
+        else
+  	maxpatches--;
+        printf ("maxpatches %d\n", maxpatches);
+        }
+!    else if (ok && key == YK_RETURN)			// [Return]
+!       break; /* return "name" */
+     else if (key == YK_ESC)				// [Esc]
+        {
+        name[0] = '\0'; /* return an empty string */
+!       break;
+        }
+     else
+        Beep ();
+  done_with_event:
+     ;
+     }
+! delete[] namedisp;
+  }
+  
+  
+  /*
+     ask for a name in a given list
+  */
+  
+! void InputNameFromList (
+     int x0,
+     int y0,
+     const char *prompt,
+     size_t listsize,
+     const char *const *list,
+!    char *name)
+  {
+  HideMousePointer ();
+! InputNameFromListWithFunc (x0, y0, prompt, listsize, list, 5, name, 0, 0, NULL);
+  ShowMousePointer ();
+  }
+  
+  
+  
+  
+--- 584,654 ----
+     else if (key == 24)					// ^X: less patches
+        {
+        if (maxpatches == 0)
+  	maxpatches = c.npatches - 1;
+        else
+  	maxpatches--;
+        printf ("maxpatches %d\n", maxpatches);
+        }
+!    else if (ok && key == YK_RETURN){			// [Return]
+!       retf = RETURN_NAME;
+!       goto return_value; /* return "name" */
+!    }
+     else if (key == YK_ESC)				// [Esc]
+        {
+        name[0] = '\0'; /* return an empty string */
+!       retf = 0;
+!       goto return_value;
+!       }
+!    else if (key == 03) {	// ^C: Colormap
+!       if( escapes & SEL_COLORMAP ) {
+! 	 retf = SEL_COLORMAP;
+! 	 goto return_value;
+        }
++    }
++    else if (key == 20) {	// ^T: Texture
++       if( escapes & SEL_TEXTURE ) {
++ 	 retf = SEL_TEXTURE;
++ 	 goto return_value;
++       }
++    }
++    else if (key == 18) {	// ^R: Raw string
++       if( escapes & SEL_RAWSTRING ) {
++ 	 retf = SEL_RAWSTRING;
++ 	 goto return_value;
++       }
++    }
+     else
+        Beep ();
+  done_with_event:
+     ;
+     }
+! 
+! return_value:
+!   delete[] namedisp;
+!   return retf;
+  }
+  
+  
+  /*
+     ask for a name in a given list
+  */
+  
+! int InputNameFromList (
+     int x0,
+     int y0,
+     const char *prompt,
+     size_t listsize,
+     const char *const *list,
+!    char *name,
+!    int escapes )
+  {
+  HideMousePointer ();
+! int retf = InputNameFromListWithFunc (x0, y0, prompt, listsize, list,
+! 				     5, name, 0, 0, escapes, NULL);
+  ShowMousePointer ();
++ return retf;
+  }
+  
+  
+  
+  
+diff -C8 orig/lists.h src/lists.h
+*** orig/lists.h	Fri Mar 28 06:37:32 2003
+--- src/lists.h	Sat Oct 24 23:07:17 2009
+***************
+*** 98,114 ****
+  const int HOOK_DISP_SIZE  = 1 << 2;	// Caller should display "widthxheight"
+  const int HOOK_SPECTRAL   = 1 << 3;	// Render picture with a spectral look
+  const int HOOK_PATCH      = 1 << 4;	// Use patch_dir.loc_by_name()
+  const int HOOK_SPRITE     = 1 << 5;	// Use wad_res.sprites.loc_by_name()
+  const int HOOK_LOC_VALID  = 1 << 6;	// lump_loc is valid
+  const int HOOK_ROOT       = 1 << 7;	// .name is the prefix. Use loc_by_root
+  
+  
+! void InputNameFromListWithFunc (int, int, const char *, size_t,
+!   const char *const *, size_t, char *, int, int,
+!   void (*hookfunc)(hookfunc_comm_t *),
+!   char flags_to_pass_to_callback = 0);
+! void InputNameFromList (int, int, const char *, size_t, const char *const *,
+!   char *);
+  
+  
+  #endif  /* DO NOT ADD ANYTHING AFTER THIS LINE */
+--- 98,143 ----
+  const int HOOK_DISP_SIZE  = 1 << 2;	// Caller should display "widthxheight"
+  const int HOOK_SPECTRAL   = 1 << 3;	// Render picture with a spectral look
+  const int HOOK_PATCH      = 1 << 4;	// Use patch_dir.loc_by_name()
+  const int HOOK_SPRITE     = 1 << 5;	// Use wad_res.sprites.loc_by_name()
+  const int HOOK_LOC_VALID  = 1 << 6;	// lump_loc is valid
+  const int HOOK_ROOT       = 1 << 7;	// .name is the prefix. Use loc_by_root
+  
+  
+! // return 0 on reject
+! // return RETURN_NAME on success
+! // return SEL_ on special key
+! int InputNameFromListWithFunc (
+!    int x0,
+!    int y0,
+!    const char *prompt,
+!    size_t listsize,
+!    const char *const *list,
+!    size_t listdisp,
+!    char *name,
+!    int width,
+!    int height,
+!    int escapes,		// OR of SEL_TEXTURE, SEL_COLORMAP, etc.
+!    void (*hookfunc)(hookfunc_comm_t *),
+!    char flags_to_pass_to_callback = 0 );
+! 
+! int InputNameFromList (
+!    int x0,
+!    int y0,
+!    const char *prompt,
+!    size_t listsize,
+!    const char *const *list,
+!    char *name,
+!    int escapes = 0 );
+! 
+! // [WDJ] Many linedef types use the textures in strange ways
+! // Enables for switching select lists.
+! enum {
+!    SEL_FLAT = 0x01,
+!    SEL_TEXTURE = 0x02,
+!    SEL_COLORMAP = 0x04,
+!    SEL_RAWSTRING = 0x08,
+!    RETURN_NAME = 0x80		// as return indicator
+! };
+  
+  
+  #endif  /* DO NOT ADD ANYTHING AFTER THIS LINE */
+diff -C8 orig/r_render.cc src/r_render.cc
+*** orig/r_render.cc	Thu Jul  9 17:14:57 2009
+--- src/r_render.cc	Sat Sep 12 19:37:50 2009
+***************
+*** 203,218 ****
+--- 203,220 ----
+        col = 0x30 + ((ld - LineDefs) % 64);
+  
+        if (col >= 0x60)
+           col += 0x70;
+        }
+  };
+  
+  
++ static const double IZ_EPSILON = 0.000001;
++ 
+  struct DrawWall
+  {
+  public:
+     typedef std::vector<struct DrawWall *> vec_t;
+  
+     Thing *th;
+     // when `th' is non-zero, this is actually a sprite, and `ld' and
+     // `sd' will be zero.  Sprites use the info in the `ceil' surface.
+***************
+*** 247,263 ****
+  
+     /* surfaces */
+     
+     DrawSurf ceil;
+     DrawSurf upper;
+     DrawSurf lower;
+     DrawSurf floor;
+  
+-    static const double IZ_EPSILON = 0.000001;
+  
+     /* PREDICATES */
+  
+     struct MidDistCmp
+        {
+        inline bool operator() (const DrawWall * A, const DrawWall * B) const
+           {
+           return A->mid_iz > B->mid_iz;
+--- 249,264 ----
+***************
+*** 400,432 ****
+              else
+                 lower.tex_h = lower.h1;
+              }
+           }
+        }
+  };
+  
+  
+  struct RendInfo
+  {
+  public:
+     DrawWall::vec_t walls;
+     // complete set of walls/sprites to draw.
+  
+     DrawWall::vec_t active;
+     // the active list.  Pointers here are always duplicates of ones in
+     // the walls list (no need to `delete' any of them).
+  
+     std::vector<double> depth_x;  
+     // inverse distances over X range, 0 when empty.
+  
+     int open_y1;
+     int open_y2;
+  
+-    static const double Y_SLOPE = 1.70;
+  
+     static void DeleteWall (DrawWall *P)
+        {
+        delete P;
+        }
+  
+     ~RendInfo ()
+        {
+--- 401,434 ----
+              else
+                 lower.tex_h = lower.h1;
+              }
+           }
+        }
+  };
+  
+  
++ static const double Y_SLOPE = 1.70;
++ 
+  struct RendInfo
+  {
+  public:
+     DrawWall::vec_t walls;
+     // complete set of walls/sprites to draw.
+  
+     DrawWall::vec_t active;
+     // the active list.  Pointers here are always duplicates of ones in
+     // the walls list (no need to `delete' any of them).
+  
+     std::vector<double> depth_x;  
+     // inverse distances over X range, 0 when empty.
+  
+     int open_y1;
+     int open_y2;
+  
+  
+     static void DeleteWall (DrawWall *P)
+        {
+        delete P;
+        }
+  
+     ~RendInfo ()
+        {
+diff -C8 orig/s_merge.cc src/s_merge.cc
+*** orig/s_merge.cc	Fri Mar 28 06:37:32 2003
+--- src/s_merge.cc	Thu Sep 10 21:51:47 2009
+***************
+*** 76,91 ****
+--- 76,96 ----
+  
+  void DeleteLineDefsJoinSectors (SelPtr *ldlist) /* SWAP! */
+  {
+  SelPtr cur, slist;
+  int    sd1, sd2;
+  int    s1, s2;
+  char   msg[80];
+  
++ /* [WDJ] Fix
++  1. When linedef has same sector on both sides it should not delete
++     whole sector.
++  2. Makes mistakes in sector changes.
++ */
+  /* first, do the tests for all LineDefs */
+  for (cur = *ldlist; cur; cur = cur->next)
+     {
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[cur->objnum].sidedef1;
+     sd2 = LineDefs[cur->objnum].sidedef2;
+     if (sd1 < 0 || sd2 < 0)
+        {
+***************
+*** 110,128 ****
+  for (cur = *ldlist; cur; cur = cur->next)
+     {
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[cur->objnum].sidedef1;
+     sd2 = LineDefs[cur->objnum].sidedef2;
+     ObjectsNeeded (OBJ_SIDEDEFS, 0);
+     s1 = SideDefs[sd1].sector;
+     s2 = SideDefs[sd2].sector;
+!    slist = NULL;
+!    SelectObject (&slist, s2);
+!    SelectObject (&slist, s1);
+!    MergeSectors (&slist);
+!    ForgetSelection (&slist);
+     }
+  DeleteObjects (OBJ_LINEDEFS, ldlist);
+  }
+  
+  
+  
+--- 115,136 ----
+  for (cur = *ldlist; cur; cur = cur->next)
+     {
+     ObjectsNeeded (OBJ_LINEDEFS, 0);
+     sd1 = LineDefs[cur->objnum].sidedef1;
+     sd2 = LineDefs[cur->objnum].sidedef2;
+     ObjectsNeeded (OBJ_SIDEDEFS, 0);
+     s1 = SideDefs[sd1].sector;
+     s2 = SideDefs[sd2].sector;
+!    if ( s1 != s2 )      // [WDJ] Not when both sidedefs are the same sector.
+!     {
+!       slist = NULL;
+!       SelectObject (&slist, s2);
+!       SelectObject (&slist, s1);
+!       MergeSectors (&slist);
+!       ForgetSelection (&slist);
+!     }
+     }
+  DeleteObjects (OBJ_LINEDEFS, ldlist);
+  }
+  
+  
+  
+diff -C8 orig/textures.cc src/textures.cc
+*** orig/textures.cc	Thu Apr 24 15:50:36 2003
+--- src/textures.cc	Sat Oct 24 23:09:41 2009
+***************
+*** 567,594 ****
+     *height = -1;
+     }
+  }
+  
+  
+  /*
+     choose a wall texture
+  */
+! void ChooseWallTexture (int x0, int y0, const char *prompt, int listsize,
+!    char **list, char *name)
+  {
+  HideMousePointer ();
+  
+  SwitchToVGA256 ();
+  /* If we only have a 320x200x256 VGA driver, we must change x0 and y0.
+     Yuck! */
+  if (GfxMode > -2)
+     {
+     x0 = 0;
+     y0 = -1;
+     }
+! InputNameFromListWithFunc (x0, y0, prompt, listsize, list, 9, name,
+!   512, 256, DisplayWallTexture);
+  SwitchToVGA16 ();
+  
+  ShowMousePointer ();
+  }
+  
+--- 567,598 ----
+     *height = -1;
+     }
+  }
+  
+  
+  /*
+     choose a wall texture
+  */
+! // return 0 on reject
+! // return TK_RETURN on success
+! // return key on special key
+! int ChooseWallTexture (int x0, int y0, const char *prompt, int listsize,
+!    char **list, char *name, int escapes )
+  {
+  HideMousePointer ();
+  
+  SwitchToVGA256 ();
+  /* If we only have a 320x200x256 VGA driver, we must change x0 and y0.
+     Yuck! */
+  if (GfxMode > -2)
+     {
+     x0 = 0;
+     y0 = -1;
+     }
+! int retf = InputNameFromListWithFunc (x0, y0, prompt, listsize, list, 9, name,
+!   512, 256, escapes, DisplayWallTexture);
+  SwitchToVGA16 ();
+  
+  ShowMousePointer ();
++ return retf;
+  }
+  
+diff -C8 orig/textures.h src/textures.h
+*** orig/textures.h	Sat Apr 29 15:30:00 2000
+--- src/textures.h	Sat Oct 24 23:08:19 2009
+***************
+*** 8,20 ****
+  #define YH_TEXTURES
+  
+  
+  #include "lists.h"
+  
+  
+  /* textures.cc */
+  void DisplayPic (hookfunc_comm_t *c);
+! void ChooseWallTexture (int, int, const char *, int, char **, char *);
+  void GetWallTextureSize (i16 *, i16 *, const char *);
+  
+  
+  #endif
+--- 8,24 ----
+  #define YH_TEXTURES
+  
+  
+  #include "lists.h"
+  
+  
+  /* textures.cc */
+  void DisplayPic (hookfunc_comm_t *c);
+! // return 0 on reject
+! // return RETURN_NAME on success
+! // return SEL_ on special key
+! int ChooseWallTexture (int x0, int y0, const char *prompt, int listsize,
+!    char **list, char *name, int escapes = 0 );
+  void GetWallTextureSize (i16 *, i16 *, const char *);
+  
+  
+  #endif
+diff -C8 orig/wads2.cc src/wads2.cc
+*** orig/wads2.cc	Fri Mar 28 06:37:32 2003
+--- src/wads2.cc	Sat Sep 12 00:59:54 2009
+***************
+*** 197,212 ****
+--- 197,221 ----
+        // to be sprites.
+        else if (! strncmp (entryname, "SS_START", WAD_NAME))
+  	 {
+  	 state      = 's';
+  	 entry_type = "group of sprites";
+  	 replaces   = 0;
+           nitems     = 0;
+  	 }
++       // Boom puts colormaps between C_START and C_END.
++       // All names between those markers are assumed to be colormaps.
++       else if (! strncmp (entryname, "C_START", WAD_NAME))
++ 	 {
++ 	 state      = 'c';
++ 	 entry_type = "colormap list";
++ 	 replaces   = 0;
++          nitems     = 0;
++ 	 }
+        else
+  	 {
+  	 mdir = FindMasterDir (MasterDir, entryname);
+  	 replaces = mdir != NULL;
+  	 /* if it is a level, do the same thing for the next 10 entries too */
+  	 if (levelname2levelno (entryname))
+  	    {
+  	    state = 11;
+***************
+*** 293,309 ****
+           }
+        // Of course, S?_START and S?_END don't count
+        // toward the number of sprites in the group.
+        else if (! (*entryname == 'S'
+                    && (! strncmp (entryname + 2, "_START", 6)
+                        || ! strcmp (entryname + 2, "_END"))))
+           nitems++;
+        }
+!      
+     /* if this entry is not in the master directory, then add it */
+     if (!replaces)
+        {
+        mdir = MasterDir;
+        while (mdir->next)
+  	 mdir = mdir->next;
+        mdir->next = (MDirPtr) GetMemory (sizeof (struct MasterDirectory));
+        mdir = mdir->next;
+--- 302,332 ----
+           }
+        // Of course, S?_START and S?_END don't count
+        // toward the number of sprites in the group.
+        else if (! (*entryname == 'S'
+                    && (! strncmp (entryname + 2, "_START", 6)
+                        || ! strcmp (entryname + 2, "_END"))))
+           nitems++;
+        }
+! 
+!    // C_END marks the end of a colormap list.
+!    else if (state == 'c')
+!       {
+!       if (! strncmp (entryname, "C_END", WAD_NAME) )
+!          {
+! 	 state = 0;
+!          verbmsg ("/%.*s (%d colormaps)", WAD_NAME, entryname, nitems);
+!          }
+!       // Of course, START and END don't count toward the number of colormaps.
+!       else{
+! 	 if ( strncmp (entryname, "C_END", 8) != 0 )   nitems++;
+!        }
+!       }
+!       
+     /* if this entry is not in the master directory, then add it */
+     if (!replaces)
+        {
+        mdir = MasterDir;
+        while (mdir->next)
+  	 mdir = mdir->next;
+        mdir->next = (MDirPtr) GetMemory (sizeof (struct MasterDirectory));
+        mdir = mdir->next;
+diff -C8 orig/yadex.cc src/yadex.cc
+*** orig/yadex.cc	Sun Dec 14 18:47:10 2003
+--- src/yadex.cc	Sat Oct 24 23:27:56 2009
+***************
+*** 544,559 ****
+--- 544,560 ----
+  if (GfxMode)
+     TermGfx ();  // Don't need to sleep (1) either.
+  #endif
+  
+  // Clean up things and free swap space
+  ForgetLevelData ();
+  ForgetWTextureNames ();
+  ForgetFTextureNames ();
++ ForgetBoomColormaps ();
+  CloseWadFiles ();
+  exit (2);
+  }
+  
+  
+  /*
+   *	err
+   *	Print an error message but do not terminate the program.
+***************
+*** 1019,1035 ****
+        *buf = '\0';
+        if (sprite != 0)
+        {
+  	strncat (buf, sprite, sizeof buf - 1);
+  	for (char *p = buf; *p != '\0'; p++)
+  	  *p = toupper (*p);
+        }
+        InputNameFromListWithFunc (-1, -1, "Sprite viewer", list.size (),
+! 	list.data (), 10, buf, 320, 200, display_pic,
+  	HOOK_DISP_SIZE | HOOK_SPRITE);
+        }
+        TermGfx ();
+        v_end:;
+        }
+  
+     // "viewflat" - view the flats
+     else if (strcmp (com, "viewflat") == 0)
+--- 1020,1036 ----
+        *buf = '\0';
+        if (sprite != 0)
+        {
+  	strncat (buf, sprite, sizeof buf - 1);
+  	for (char *p = buf; *p != '\0'; p++)
+  	  *p = toupper (*p);
+        }
+        InputNameFromListWithFunc (-1, -1, "Sprite viewer", list.size (),
+! 	list.data (), 10, buf, 320, 200, 0, display_pic,
+  	HOOK_DISP_SIZE | HOOK_SPRITE);
+        }
+        TermGfx ();
+        v_end:;
+        }
+  
+     // "viewflat" - view the flats
+     else if (strcmp (com, "viewflat") == 0)
+***************
+*** 1094,1110 ****
+        {
+  	 char buf[WAD_NAME + 1];
+  	 *buf = '\0';
+  	 if (com != 0)
+  	   strncat (buf, com, sizeof buf - 1);
+  	 Patch_list pl;
+  	 patch_dir.list (pl);
+  	 InputNameFromListWithFunc (-1, -1, "Patch viewer", pl.size (),
+! 	       pl.data (), 10, buf, 256, 256, display_pic,
+  	       HOOK_DISP_SIZE | HOOK_PATCH);
+        }
+        TermGfx ();
+        viewpat_end:;
+        }
+  
+     // "viewtex" - view the textures
+     else if (strcmp (com, "viewtex") == 0)
+--- 1095,1111 ----
+        {
+  	 char buf[WAD_NAME + 1];
+  	 *buf = '\0';
+  	 if (com != 0)
+  	   strncat (buf, com, sizeof buf - 1);
+  	 Patch_list pl;
+  	 patch_dir.list (pl);
+  	 InputNameFromListWithFunc (-1, -1, "Patch viewer", pl.size (),
+! 	       pl.data (), 10, buf, 256, 256, 0, display_pic,
+  	       HOOK_DISP_SIZE | HOOK_PATCH);
+        }
+        TermGfx ();
+        viewpat_end:;
+        }
+  
+     // "viewtex" - view the textures
+     else if (strcmp (com, "viewtex") == 0)
+diff -C8 orig/yadex.h src/yadex.h
+*** orig/yadex.h	Thu Jul  9 17:10:59 2009
+--- src/yadex.h	Sat Sep 12 20:28:43 2009
+***************
+*** 26,41 ****
+--- 26,53 ----
+  this program; if not, write to the Free Software Foundation, Inc., 59 Temple
+  Place, Suite 330, Boston, MA 02111-1307, USA.
+  */
+  
+  
+  #ifndef YH_YADEX  /* DO NOT INSERT ANYTHING BEFORE THIS LINE */
+  #define YH_YADEX
+  
++ // User defines
++ // Use the stdint defines that know the target machine best.
++ #define USE_STDINT	1
++ 
++ // Use the keyboard assignments for laptops without all function keys
++ // #define SMALL_LAPTOP_KEYBOARD
++ 
++ // Use menus with char selection instead of numeric selection
++ #define MENU_BY_CHAR	1
++ 
++ 
++ 
+  
+  #include "config.h"
+  
+  
+  // Sanity checks
+  #if ! (defined Y_BGI ^ defined Y_X11)
+  #error "You must #define either Y_BGI or Y_X11"
+  #endif
+***************
+*** 85,113 ****
+  
+  
+  /*
+   *	Platform-independant types and formats.
+   */
+  typedef unsigned char  u8;
+  typedef signed   char  i8;
+  
+  typedef unsigned short u16;
+  #define F_U16_D "hu"
+  #define F_U16_H "hX"
+  
+- typedef signed   short i16;
+  #define F_I16_D "hd"
+  #define F_I16_H "hX"
+  
+- typedef unsigned long  u32;
+  #define F_U32_D "lu"
+  #define F_U32_H "lX"
+  
+- typedef signed   long  i32;
+  #define F_I32_D "ld"
+  #define F_I32_H "lX"
+  
+  
+  /*
+   *	Platform definitions
+   */
+  #if defined Y_DOS
+--- 97,134 ----
+  
+  
+  /*
+   *	Platform-independant types and formats.
+   */
+  typedef unsigned char  u8;
+  typedef signed   char  i8;
+  
++ #ifdef USE_STDINT
++ #include <stdint.h>
++ typedef uint16_t  u16;
++ typedef int16_t   i16;
++ typedef uint32_t  u32;
++ typedef int32_t   i32;
++ #else
++ // standard guess, which will eventually fail
+  typedef unsigned short u16;
++ typedef signed   short i16;
++ typedef unsigned long  u32;
++ typedef signed   long  i32;
++ #endif
+  #define F_U16_D "hu"
+  #define F_U16_H "hX"
+  
+  #define F_I16_D "hd"
+  #define F_I16_H "hX"
+  
+  #define F_U32_D "lu"
+  #define F_U32_H "lX"
+  
+  #define F_I32_D "ld"
+  #define F_I32_H "lX"
+  
+  
+  /*
+   *	Platform definitions
+   */
+  #if defined Y_DOS
+***************
+*** 488,503 ****
+--- 509,526 ----
+  int ReadLevelData (const char *); /* SWAP! */
+  void ForgetLevelData (void); /* SWAP! */
+  int SaveLevelData (const char *, const char *level_name); /* SWAP! */
+  void ReadWTextureNames (void);
+  void ForgetFTextureNames (void);
+  int is_flat_name_in_list (const char *name);
+  void ReadFTextureNames (void);
+  void ForgetWTextureNames (void);
++ void ReadBoomColormapNames (void);	// [WDJ]
++ void ForgetBoomColormaps (void);	// [WDJ]
+  
+  // mouse.cc (this module is entirely DOS-specific)
+  #if defined Y_BGI
+  void CheckMouseDriver (void);
+  void ShowMousePointer (void);
+  void HideMousePointer (void);
+  void GetMouseCoords (int *, int *, int *);
+  void SetMouseCoords (int, int);
